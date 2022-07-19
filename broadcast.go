@@ -2,6 +2,8 @@ package gnetws
 
 import (
 	"bytes"
+	"github.com/gobwas/ws"
+	"github.com/gobwas/ws/wsutil"
 	"github.com/panjf2000/gnet/v2"
 	"github.com/sirupsen/logrus"
 	"io"
@@ -28,9 +30,7 @@ func (self *Buffer) Write(b []byte) (int, error) {
 type Packing interface {
 	io.Writer
 	Flush() error
-	Recycle(p []byte)
 	SubPackage() (p []byte)
-	SetRecipient(w io.ReadWriter)
 }
 
 type Broadcast struct {
@@ -42,8 +42,6 @@ type Broadcast struct {
 }
 
 func NewBroadcast(wrapper Packing, docodec DoCodec) *Broadcast {
-	buf := new(Buffer)
-	wrapper.SetRecipient(buf)
 	return &Broadcast{
 		pack:    wrapper,
 		codec:   docodec,
@@ -83,6 +81,34 @@ func (self *Broadcast) emit() {
 			_ = key.(gnet.Conn).AsyncWrite(pk, nil)
 			return true
 		})
-		self.pack.Recycle(pk)
+	}
+}
+
+type WebSocketWrapper struct {
+	buffer  *Buffer
+	writetx *wsutil.Writer
+}
+
+func NewWebSocketWrapper() *WebSocketWrapper {
+	buf := new(Buffer)
+	return &WebSocketWrapper{
+		buffer:  buf,
+		writetx: wsutil.NewWriter(buf, ws.StateServerSide, ws.OpText),
+	}
+}
+
+func (self *WebSocketWrapper) Flush() error {
+	return self.writetx.Flush()
+}
+
+func (self *WebSocketWrapper) Write(p []byte) (int, error) {
+	return self.writetx.Write(p)
+}
+
+func (self *WebSocketWrapper) SubPackage() (p []byte) {
+	if p, _ = self.buffer.ReadBytes(22); len(p) != 0 {
+		return p
+	} else {
+		return nil
 	}
 }
