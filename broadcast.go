@@ -30,7 +30,6 @@ func (self *Buffer) Write(b []byte) (int, error) {
 type Packing interface {
 	io.Writer
 	Flush() error
-	Recovery(p []byte)
 	SubPackage() (p []byte)
 }
 
@@ -82,32 +81,11 @@ func (self *Broadcast) emit() {
 			_ = key.(gnet.Conn).AsyncWrite(pk, nil)
 			return true
 		})
-		self.pack.Recovery(pk) // 回收
 	}
-}
-
-var ppool = sync.Pool{
-	New: func() interface{} {
-		return make([]byte, 0, 1024)
-	},
-}
-
-func scale(b []byte, l int) []byte {
-	if cap(b) >= l {
-		return b[:l]
-	}
-	kb := func(i int) int {
-		t := 1
-		for t*1024 < i {
-			t++
-		}
-		return t * 1024
-	}
-
-	return make([]byte, l, kb(l))
 }
 
 type WebSocketWrapper struct {
+	packet  []byte
 	buffer  *Buffer
 	writetx *wsutil.Writer
 }
@@ -116,12 +94,9 @@ func NewWebSocketWrapper() *WebSocketWrapper {
 	buf := new(Buffer)
 	return &WebSocketWrapper{
 		buffer:  buf,
+		packet:  make([]byte, 0, 4096),
 		writetx: wsutil.NewWriter(buf, ws.StateServerSide, ws.OpText),
 	}
-}
-
-func (self *WebSocketWrapper) Recovery(p []byte) {
-	ppool.Put(p)
 }
 
 func (self *WebSocketWrapper) Flush() error {
@@ -132,22 +107,25 @@ func (self *WebSocketWrapper) Write(p []byte) (int, error) {
 	return self.writetx.Write(p)
 }
 
-func (self *WebSocketWrapper) SubPackage() (p []byte) {
+func (self *WebSocketWrapper) SubPackage() []byte {
 	n := bytes.IndexByte(self.buffer.Bytes(), '\n')
 	if n <= 0 {
 		return nil
 	}
-	p = ppool.Get().([]byte)
 
-	scale(p, n) // 检测容量
+	if n <= cap(self.packet) {
+		self.packet = self.packet[:n]
+	} else {
+		self.packet = make([]byte, n, n)
+	}
 
-	if _, err := self.buffer.Read(p); err != nil {
+	if _, err := self.buffer.Read(self.packet); err != nil {
 		return nil
 	}
 
-	if len(p) > 0 && p[len(p)-1] == '\r' {
-		p = p[:len(p)-1]
+	if len(self.packet) > 0 && self.packet[len(self.packet)-1] == '\r' {
+		self.packet = self.packet[:len(self.packet)-1]
 	}
 
-	return
+	return self.packet
 }
