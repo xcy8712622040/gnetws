@@ -9,6 +9,7 @@ package echo
 import (
 	"encoding/json"
 	"github.com/sirupsen/logrus"
+	"github.com/xcy8712622040/gnetws"
 	"github.com/xcy8712622040/gnetws/dstservice"
 	"github.com/xcy8712622040/gnetws/eventserve"
 	"io"
@@ -18,11 +19,11 @@ import (
 
 type JsonCodec struct{}
 
-func (self JsonCodec) NewEnCodec(w io.Writer) dstservice.EnCodec {
+func (self JsonCodec) NewEnCodec(w io.Writer) gnetws.EnCodec {
 	return json.NewEncoder(w)
 }
 
-func (self JsonCodec) NewDeCodec(r io.Reader) dstservice.DeCodec {
+func (self JsonCodec) NewDeCodec(r io.Reader) gnetws.DeCodec {
 	return json.NewDecoder(r)
 }
 

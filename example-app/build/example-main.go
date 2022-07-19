@@ -9,6 +9,7 @@ import (
 	"github.com/xcy8712622040/gnetws/cron-3"
 	"github.com/xcy8712622040/gnetws/dstservice"
 	"github.com/xcy8712622040/gnetws/eventserve"
+	_ "github.com/xcy8712622040/gnetws/example-app/application"
 	"log"
 	"os/signal"
 	"syscall"
@@ -37,19 +38,19 @@ func main() {
 		syscall.SIGABRT, // abort函数触发
 	)
 
-	Serve.AddFunc("*/1 * * * * *", func() {
+	_, _ = Serve.AddFunc("*/1 * * * * *", func() {
 		fmt.Println("1", time.Now().Format("2006-01-02 15:04:05"))
 	})
 
-	Serve.AddFunc("*/20 * * * * *", func() {
+	_, _ = Serve.AddFunc("*/20 * * * * *", func() {
 		fmt.Println("2", time.Now().Format("2006-01-02 15:04:05"))
 	})
 
-	Serve.AddFunc("0 */1 * * * *", func() {
+	_, _ = Serve.AddFunc("0 */1 * * * *", func() {
 		fmt.Println("3", time.Now().Format("2006-01-02 15:04:05"))
 	})
 
-	Serve.AddFunc("0 0 */1 * * *", func() {
+	_, _ = Serve.AddFunc("0 0 */1 * * *", func() {
 		fmt.Println("4", time.Now().Format("2006-01-02 15:04:05"))
 	})
 

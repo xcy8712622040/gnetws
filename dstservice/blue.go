@@ -28,7 +28,7 @@ type function struct {
 }
 
 type blueprint struct {
-	DoCodec
+	gnetws.DoCodec
 
 	args         *sync.Pool
 	functionpool map[string]function

@@ -20,12 +20,12 @@ import (
 )
 
 type Method interface {
-	DoCodec
+	gnetws.DoCodec
 	DoProc(ctx *eventserve.WebSocketContext, conn *eventserve.Conn)
 }
 
 type root struct {
-	DoCodec
+	gnetws.DoCodec
 
 	args *sync.Pool
 	proc func(ctx *eventserve.WebSocketContext, args interface{}) interface{}
@@ -92,7 +92,7 @@ func (self *WebSocketHandler) Proc(ctx *eventserve.WebSocketContext, conn gnet.C
 	return nil
 }
 
-func (self *WebSocketHandler) Blueprint(path string, args Packet, codec DoCodec) *blueprint {
+func (self *WebSocketHandler) Blueprint(path string, args Packet, codec gnetws.DoCodec) *blueprint {
 	refType := reflect.TypeOf(args)
 	self.methodpool[path] = &blueprint{DoCodec: codec, functionpool: map[string]function{}, args: &sync.Pool{
 		New: func() interface{} {
@@ -106,7 +106,7 @@ func (self *WebSocketHandler) Blueprint(path string, args Packet, codec DoCodec)
 	return self.methodpool[path].(*blueprint)
 }
 
-func (self *WebSocketHandler) Route(path string, args interface{}, codec DoCodec, proc func(ctx *eventserve.WebSocketContext, args interface{}) interface{}) (err error) {
+func (self *WebSocketHandler) Route(path string, args interface{}, codec gnetws.DoCodec, proc func(ctx *eventserve.WebSocketContext, args interface{}) interface{}) (err error) {
 	if _, ok := self.methodpool[path]; ok {
 		err = fmt.Errorf("please note that, path [%s] has been overwritten", path)
 	}
