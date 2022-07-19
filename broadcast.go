@@ -30,6 +30,7 @@ func (self *Buffer) Write(b []byte) (int, error) {
 type Packing interface {
 	io.Writer
 	Flush() error
+	Recovery(p []byte)
 	SubPackage() (p []byte)
 }
 
@@ -81,7 +82,29 @@ func (self *Broadcast) emit() {
 			_ = key.(gnet.Conn).AsyncWrite(pk, nil)
 			return true
 		})
+		self.pack.Recovery(pk) // 回收
 	}
+}
+
+var ppool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 0, 1024)
+	},
+}
+
+func scale(b []byte, l int) []byte {
+	if cap(b) >= l {
+		return b[:l]
+	}
+	kb := func(i int) int {
+		t := 1
+		for t*1024 < i {
+			t++
+		}
+		return t * 1024
+	}
+
+	return make([]byte, l, kb(l))
 }
 
 type WebSocketWrapper struct {
@@ -97,6 +120,10 @@ func NewWebSocketWrapper() *WebSocketWrapper {
 	}
 }
 
+func (self *WebSocketWrapper) Recovery(p []byte) {
+	ppool.Put(p)
+}
+
 func (self *WebSocketWrapper) Flush() error {
 	return self.writetx.Flush()
 }
@@ -106,9 +133,21 @@ func (self *WebSocketWrapper) Write(p []byte) (int, error) {
 }
 
 func (self *WebSocketWrapper) SubPackage() (p []byte) {
-	if p, _ = self.buffer.ReadBytes(22); len(p) != 0 {
-		return p
-	} else {
+	n := bytes.IndexByte(self.buffer.Bytes(), '\n')
+	if n <= 0 {
 		return nil
 	}
+	p = ppool.Get().([]byte)
+
+	scale(p, n) // 检测容量
+
+	if _, err := self.buffer.Read(p); err != nil {
+		return nil
+	}
+
+	if len(p) > 0 && p[len(p)-1] == '\r' {
+		p = p[:len(p)-1]
+	}
+
+	return
 }
