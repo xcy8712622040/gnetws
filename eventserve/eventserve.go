@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	GnetConn        = "__gnet_conn__"
-	WebSocketServer = "__ws_server__"
+	GnetConn          = "__gnet_conn__"
+	GnetHandlerServer = "__gent_Handler_server__"
 )
 
 type Option func(s *ServerHandler)
@@ -62,18 +62,23 @@ func NewHeanler(opts ...Option) *ServerHandler {
 	return handler
 }
 
+func (self *ServerHandler) OnShutdown(eng gnet.Engine) {}
 func (self *ServerHandler) OnBoot(_ gnet.Engine) (action gnet.Action) {
-	return self.EventCron.Init()
+	if self.EventCron.Cron != nil {
+		self.EventCron.Init()
+	}
+	return action
 }
 
 func (self *ServerHandler) OnTick() (delay time.Duration, action gnet.Action) {
 	return self.EventCron.Ticker()
 }
+
 func (self *ServerHandler) OnOpen(conn gnet.Conn) (out []byte, action gnet.Action) {
 	ctx := WithWebSocketContext(
 		self.todoctx, self.logger,
 		[2]interface{}{GnetConn, conn},
-		[2]interface{}{WebSocketServer, self},
+		[2]interface{}{GnetHandlerServer, self},
 	)
 
 	if self.factory != nil {
@@ -90,7 +95,7 @@ func (self *ServerHandler) OnOpen(conn gnet.Conn) (out []byte, action gnet.Actio
 
 func (self *ServerHandler) OnClose(conn gnet.Conn, err error) (action gnet.Action) {
 	if ctx := conn.Context(); ctx != nil {
-		ctx.(*WebSocketContext).Cancel()
+		ctx.(*GnetContext).Cancel()
 	}
 
 	self.logger.Debugf(
@@ -101,7 +106,7 @@ func (self *ServerHandler) OnClose(conn gnet.Conn, err error) (action gnet.Actio
 }
 
 func (self *ServerHandler) OnTraffic(conn gnet.Conn) (action gnet.Action) {
-	ctx := conn.Context().(*WebSocketContext)
+	ctx := conn.Context().(*GnetContext)
 	if ctx.DoProc != nil {
 		if err := ctx.DoProc.Proc(ctx, conn); err != nil {
 			action = gnet.Close

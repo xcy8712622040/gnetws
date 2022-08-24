@@ -7,11 +7,12 @@ import (
 	"github.com/panjf2000/gnet/v2"
 	"github.com/sirupsen/logrus"
 	"github.com/xcy8712622040/gnetws/cron-3"
-	"github.com/xcy8712622040/gnetws/dstservice"
 	"github.com/xcy8712622040/gnetws/eventserve"
 	_ "github.com/xcy8712622040/gnetws/example-app/application"
+	"github.com/xcy8712622040/gnetws/net-protocol/websocket/dstservice"
 	"log"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 )
@@ -39,6 +40,7 @@ func main() {
 	)
 
 	_, _ = Serve.AddFunc("*/1 * * * * *", func() {
+		logrus.Info("NumGoroutine:", runtime.NumGoroutine())
 		fmt.Println("1", time.Now().Format("2006-01-02 15:04:05"))
 	})
 

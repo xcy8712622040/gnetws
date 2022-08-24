@@ -11,14 +11,12 @@ type EventCron struct {
 	*Cron
 }
 
-func (c *EventCron) Init() (action gnet.Action) {
+func (c *EventCron) Init() {
 	now := c.Cron.now()
 	for _, entry := range c.Cron.entries {
 		entry.Next = entry.Schedule.Next(now)
 		c.Cron.logger.Info("schedule", "now", now, "entry", entry.ID, "next", entry.Next)
 	}
-
-	return action
 }
 
 func (c *EventCron) Ticker() (delay time.Duration, action gnet.Action) {

@@ -12,6 +12,7 @@ import (
 	"github.com/panjf2000/gnet/v2"
 	"github.com/xcy8712622040/gnetws"
 	"github.com/xcy8712622040/gnetws/eventserve"
+	"github.com/xcy8712622040/gnetws/net-protocol/websocket"
 	"io"
 	"reflect"
 	"runtime"
@@ -20,18 +21,18 @@ import (
 )
 
 type Method interface {
-	gnetws.DoCodec
-	DoProc(ctx *eventserve.WebSocketContext, conn *eventserve.Conn)
+	gnetws.Serialize
+	DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn)
 }
 
 type root struct {
-	gnetws.DoCodec
+	gnetws.Serialize
 
 	args *sync.Pool
-	proc func(ctx *eventserve.WebSocketContext, args interface{}) interface{}
+	proc func(ctx *eventserve.GnetContext, args interface{}) interface{}
 }
 
-func (self *root) DoProc(ctx *eventserve.WebSocketContext, conn *eventserve.Conn) {
+func (self *root) DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn) {
 	x := self.args.Get()
 	if err := self.NewDeCodec(conn.FrameReader()).Decode(x); err == nil {
 		conn.AwaitAdd()
@@ -73,8 +74,8 @@ type WebSocketHandler struct {
 	methodpool map[string]Method
 }
 
-func (self *WebSocketHandler) Proc(ctx *eventserve.WebSocketContext, conn gnet.Conn) error {
-	frame := eventserve.FrameConvert(conn)
+func (self *WebSocketHandler) Proc(ctx *eventserve.GnetContext, conn gnet.Conn) error {
+	frame := websocket.FrameConvert(conn)
 
 	defer frame.Free()
 	for err := frame.NextFrame(); err != io.EOF; err = frame.NextFrame() {
@@ -92,9 +93,9 @@ func (self *WebSocketHandler) Proc(ctx *eventserve.WebSocketContext, conn gnet.C
 	return nil
 }
 
-func (self *WebSocketHandler) Blueprint(path string, args Packet, codec gnetws.DoCodec) *blueprint {
+func (self *WebSocketHandler) Blueprint(path string, args Packet, codec gnetws.Serialize) *blueprint {
 	refType := reflect.TypeOf(args)
-	self.methodpool[path] = &blueprint{DoCodec: codec, functionpool: map[string]function{}, args: &sync.Pool{
+	self.methodpool[path] = &blueprint{Serialize: codec, functionpool: map[string]function{}, args: &sync.Pool{
 		New: func() interface{} {
 			if refType.Kind() != reflect.Ptr {
 				return reflect.New(refType).Interface()
@@ -106,13 +107,13 @@ func (self *WebSocketHandler) Blueprint(path string, args Packet, codec gnetws.D
 	return self.methodpool[path].(*blueprint)
 }
 
-func (self *WebSocketHandler) Route(path string, args interface{}, codec gnetws.DoCodec, proc func(ctx *eventserve.WebSocketContext, args interface{}) interface{}) (err error) {
+func (self *WebSocketHandler) Route(path string, args interface{}, codec gnetws.Serialize, proc func(ctx *eventserve.GnetContext, args interface{}) interface{}) (err error) {
 	if _, ok := self.methodpool[path]; ok {
 		err = fmt.Errorf("please note that, path [%s] has been overwritten", path)
 	}
 
 	refType := reflect.TypeOf(args)
-	self.methodpool[path] = &root{DoCodec: codec, proc: proc, args: &sync.Pool{New: func() interface{} {
+	self.methodpool[path] = &root{Serialize: codec, proc: proc, args: &sync.Pool{New: func() interface{} {
 		if refType.Kind() != reflect.Ptr {
 			return reflect.New(refType).Interface()
 		} else {
@@ -128,7 +129,7 @@ type WebSocketUP struct {
 	WebSocketHandler
 }
 
-func (self *WebSocketUP) Proc(ctx *eventserve.WebSocketContext, conn gnet.Conn) error {
+func (self *WebSocketUP) Proc(ctx *eventserve.GnetContext, conn gnet.Conn) error {
 	up := self.Upgrader
 	wh := self.WebSocketHandler
 

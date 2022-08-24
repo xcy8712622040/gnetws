@@ -10,8 +10,8 @@ import (
 	"encoding/json"
 	"github.com/sirupsen/logrus"
 	"github.com/xcy8712622040/gnetws"
-	"github.com/xcy8712622040/gnetws/dstservice"
 	"github.com/xcy8712622040/gnetws/eventserve"
+	"github.com/xcy8712622040/gnetws/net-protocol/websocket/dstservice"
 	"io"
 	"strconv"
 	"time"
@@ -19,11 +19,11 @@ import (
 
 type JsonCodec struct{}
 
-func (self JsonCodec) NewEnCodec(w io.Writer) gnetws.EnCodec {
+func (self JsonCodec) NewEnCodec(w io.Writer) gnetws.EnCode {
 	return json.NewEncoder(w)
 }
 
-func (self JsonCodec) NewDeCodec(r io.Reader) gnetws.DeCodec {
+func (self JsonCodec) NewDeCodec(r io.Reader) gnetws.DeCode {
 	return json.NewDecoder(r)
 }
 
@@ -35,7 +35,7 @@ type Data struct {
 func init() {
 	logrus.Info("echo Handler [ / ] router:", dstservice.Handler.Route(
 		"/", new(Data), new(JsonCodec),
-		func(ctx *eventserve.WebSocketContext, args interface{}) interface{} {
+		func(ctx *eventserve.GnetContext, args interface{}) interface{} {
 			data := *args.(*Data)
 			data.Data["resert"] = strconv.Itoa(int(time.Now().UnixNano()))
 			return data

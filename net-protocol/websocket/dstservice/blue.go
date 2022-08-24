@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/xcy8712622040/gnetws"
 	"github.com/xcy8712622040/gnetws/eventserve"
+	"github.com/xcy8712622040/gnetws/net-protocol/websocket"
 	"io"
 	"reflect"
 	"runtime"
@@ -24,17 +25,17 @@ type Packet interface {
 
 type function struct {
 	args *sync.Pool
-	proc func(ctx *eventserve.WebSocketContext, args interface{}) interface{}
+	proc func(ctx *eventserve.GnetContext, args interface{}) interface{}
 }
 
 type blueprint struct {
-	gnetws.DoCodec
+	gnetws.Serialize
 
 	args         *sync.Pool
 	functionpool map[string]function
 }
 
-func (self *blueprint) DoProc(ctx *eventserve.WebSocketContext, conn *eventserve.Conn) {
+func (self *blueprint) DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn) {
 	x := self.args.Get()
 	defer self.args.Put(x)
 
@@ -84,7 +85,7 @@ func (self *blueprint) DoProc(ctx *eventserve.WebSocketContext, conn *eventserve
 	}
 }
 
-func (self *blueprint) Route(head string, args interface{}, proc func(ctx *eventserve.WebSocketContext, args interface{}) interface{}) (err error) {
+func (self *blueprint) Route(head string, args interface{}, proc func(ctx *eventserve.GnetContext, args interface{}) interface{}) (err error) {
 	if _, ok := self.functionpool[head]; ok {
 		err = fmt.Errorf("please note that, head [%s] has been overwritten", head)
 	}

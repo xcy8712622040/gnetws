@@ -17,10 +17,10 @@ const (
 )
 
 type Handler interface {
-	Proc(ctx *WebSocketContext, conn gnet.Conn) error
+	Proc(ctx *GnetContext, conn gnet.Conn) error
 }
 
-type WebSocketContext struct {
+type GnetContext struct {
 	context.Context
 
 	Cancel func()
@@ -28,7 +28,7 @@ type WebSocketContext struct {
 	Logger logging.Logger
 }
 
-func WithWebSocketContext(ctx context.Context, logger logging.Logger, mate ...[2]interface{}) *WebSocketContext {
+func WithWebSocketContext(ctx context.Context, logger logging.Logger, mate ...[2]interface{}) *GnetContext {
 	matedata := map[interface{}]interface{}{}
 	for idx := range mate {
 		matedata[mate[idx][0]] = mate[idx][1]
@@ -40,5 +40,5 @@ func WithWebSocketContext(ctx context.Context, logger logging.Logger, mate ...[2
 		),
 	)
 
-	return &WebSocketContext{Context: cancelctx, Cancel: cancel, Logger: logger}
+	return &GnetContext{Context: cancelctx, Cancel: cancel, Logger: logger}
 }

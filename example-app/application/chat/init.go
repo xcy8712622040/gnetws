@@ -9,17 +9,17 @@ package chat
 import (
 	"encoding/json"
 	"github.com/xcy8712622040/gnetws"
-	"github.com/xcy8712622040/gnetws/dstservice"
+	"github.com/xcy8712622040/gnetws/net-protocol/websocket/dstservice"
 	"io"
 )
 
 type JsonCodec struct{}
 
-func (self JsonCodec) NewEnCodec(w io.Writer) gnetws.EnCodec {
+func (self JsonCodec) NewEnCodec(w io.Writer) gnetws.EnCode {
 	return json.NewEncoder(w)
 }
 
-func (self JsonCodec) NewDeCodec(r io.Reader) gnetws.DeCodec {
+func (self JsonCodec) NewDeCodec(r io.Reader) gnetws.DeCode {
 	return json.NewDecoder(r)
 }
 

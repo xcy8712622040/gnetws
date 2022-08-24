@@ -4,7 +4,7 @@
  * @Time: 2022/6/9 16:28
 ******************************/
 
-package eventserve
+package websocket
 
 import (
 	"encoding/binary"

@@ -10,15 +10,16 @@ import (
 	"io"
 )
 
-type DoCodec interface {
-	NewEnCodec(w io.Writer) EnCodec
-	NewDeCodec(r io.Reader) DeCodec
+// Serialize 序列化器
+type Serialize interface {
+	NewEnCodec(w io.Writer) EnCode
+	NewDeCodec(r io.Reader) DeCode
 }
 
-type DeCodec interface {
+type DeCode interface {
 	Decode(x interface{}) (err error)
 }
 
-type EnCodec interface {
+type EnCode interface {
 	Encode(x interface{}) (err error)
 }

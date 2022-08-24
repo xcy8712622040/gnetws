@@ -35,13 +35,13 @@ type Packing interface {
 
 type Broadcast struct {
 	pack  Packing
-	codec DoCodec
+	codec Serialize
 
 	storage sync.Map
 	running chan struct{}
 }
 
-func NewBroadcast(wrapper Packing, docodec DoCodec) *Broadcast {
+func NewBroadcast(wrapper Packing, docodec Serialize) *Broadcast {
 	return &Broadcast{
 		pack:    wrapper,
 		codec:   docodec,

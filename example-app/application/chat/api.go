@@ -20,7 +20,7 @@ type Data struct {
 func init() {
 	logrus.Info("chat blueprint[ /chat ] router [ to ]:", router.Route(
 		"to", new(Data),
-		func(ctx *eventserve.WebSocketContext, args interface{}) interface{} {
+		func(ctx *eventserve.GnetContext, args interface{}) interface{} {
 			data := *args.(*Data)
 			fmt.Println(data)
 			data.Data["resert"] = "hello world"
