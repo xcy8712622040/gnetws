@@ -17,14 +17,12 @@ type Data struct {
 	Data map[string]string `json:"data"`
 }
 
+func (self *Data) Proc(ctx *eventserve.GnetContext) interface{} {
+	fmt.Println(self)
+	self.Data["resert"] = "hello world"
+	return self
+}
+
 func init() {
-	logrus.Info("chat blueprint[ /chat ] router [ to ]:", router.Route(
-		"to", new(Data),
-		func(ctx *eventserve.GnetContext, args interface{}) interface{} {
-			data := *args.(*Data)
-			fmt.Println(data)
-			data.Data["resert"] = "hello world"
-			return data
-		},
-	))
+	logrus.Info("chat blueprint[ /chat ] router [ to ]:", router.Route("to", new(Data)))
 }

@@ -15,11 +15,11 @@ import (
 
 type JsonCodec struct{}
 
-func (self JsonCodec) NewEnCodec(w io.Writer) gnetws.EnCode {
+func (self JsonCodec) NewEnCodec(w io.Writer) gnetws.Encode {
 	return json.NewEncoder(w)
 }
 
-func (self JsonCodec) NewDeCodec(r io.Reader) gnetws.DeCode {
+func (self JsonCodec) NewDeCodec(r io.Reader) gnetws.Decode {
 	return json.NewDecoder(r)
 }
 

@@ -27,19 +27,17 @@ type Method interface {
 
 type root struct {
 	gnetws.Serialize
-
-	args *sync.Pool
-	proc func(ctx *eventserve.GnetContext, args interface{}) interface{}
+	handler sync.Pool
 }
 
 func (self *root) DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn) {
-	x := self.args.Get()
+	x := self.handler.Get()
 	if err := self.NewDeCodec(conn.FrameReader()).Decode(x); err == nil {
 		conn.AwaitAdd()
 		if err = gnetws.GoroutinePool().Submit(func() {
 			defer func() {
 				conn.Free()
-				self.args.Put(x)
+				self.handler.Put(x)
 				var exception interface{}
 				switch exception = recover(); exception.(type) {
 				case nil:
@@ -52,8 +50,9 @@ func (self *root) DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn) {
 				ctx.Logger.Errorf("Proc Call Error: %s", exception)
 			}()
 
+			handler := x.(websocket.Handler)
 			text := conn.WebSocketTextWriter()
-			if err = self.NewEnCodec(text).Encode(self.proc(ctx, x)); err == nil {
+			if err = self.NewEnCodec(text).Encode(handler.Proc(ctx)); err == nil {
 				if err = text.Flush(); err != nil {
 					ctx.Logger.Errorf("WebSocketTextWriter Flush Error: %s", err)
 				}
@@ -95,30 +94,22 @@ func (self *WebSocketHandler) Proc(ctx *eventserve.GnetContext, conn gnet.Conn) 
 
 func (self *WebSocketHandler) Blueprint(path string, args Packet, codec gnetws.Serialize) *blueprint {
 	refType := reflect.TypeOf(args)
-	self.methodpool[path] = &blueprint{Serialize: codec, functionpool: map[string]function{}, args: &sync.Pool{
+	self.methodpool[path] = &blueprint{Serialize: codec, functionpool: map[string]sync.Pool{}, args: sync.Pool{
 		New: func() interface{} {
-			if refType.Kind() != reflect.Ptr {
-				return reflect.New(refType).Interface()
-			} else {
-				return reflect.New(refType.Elem()).Interface()
-			}
+			return reflect.New(refType.Elem()).Interface()
 		},
 	}}
 	return self.methodpool[path].(*blueprint)
 }
 
-func (self *WebSocketHandler) Route(path string, args interface{}, codec gnetws.Serialize, proc func(ctx *eventserve.GnetContext, args interface{}) interface{}) (err error) {
+func (self *WebSocketHandler) Route(path string, codec gnetws.Serialize, proc websocket.Handler) (err error) {
 	if _, ok := self.methodpool[path]; ok {
 		err = fmt.Errorf("please note that, path [%s] has been overwritten", path)
 	}
 
-	refType := reflect.TypeOf(args)
-	self.methodpool[path] = &root{Serialize: codec, proc: proc, args: &sync.Pool{New: func() interface{} {
-		if refType.Kind() != reflect.Ptr {
-			return reflect.New(refType).Interface()
-		} else {
-			return reflect.New(refType.Elem()).Interface()
-		}
+	refType := reflect.TypeOf(proc)
+	self.methodpool[path] = &root{Serialize: codec, handler: sync.Pool{New: func() interface{} {
+		return reflect.New(refType.Elem()).Interface()
 	}}}
 
 	return

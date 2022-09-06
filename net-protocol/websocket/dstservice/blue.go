@@ -23,16 +23,11 @@ type Packet interface {
 	Head() string
 }
 
-type function struct {
-	args *sync.Pool
-	proc func(ctx *eventserve.GnetContext, args interface{}) interface{}
-}
-
 type blueprint struct {
 	gnetws.Serialize
 
-	args         *sync.Pool
-	functionpool map[string]function
+	args         sync.Pool
+	functionpool map[string]sync.Pool
 }
 
 func (self *blueprint) DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn) {
@@ -60,12 +55,12 @@ func (self *blueprint) DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn)
 
 			pkt := x.(Packet)
 			if f, ok := self.functionpool[pkt.Head()]; ok {
-				data := f.args.Get()
-				defer f.args.Put(data)
+				data := f.Get()
+				defer f.Put(data)
 				if err = self.NewDeCodec(pkt).Decode(data); err == nil {
-
+					handler := data.(websocket.Handler)
 					text := conn.WebSocketTextWriter()
-					if err = self.NewEnCodec(text).Encode(f.proc(ctx, x)); err == nil {
+					if err = self.NewEnCodec(text).Encode(handler.Proc(ctx)); err == nil {
 						if err = text.Flush(); err != nil {
 							ctx.Logger.Errorf("WebSocketTextWriter Flush Error: %s", err)
 						}
@@ -85,19 +80,15 @@ func (self *blueprint) DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn)
 	}
 }
 
-func (self *blueprint) Route(head string, args interface{}, proc func(ctx *eventserve.GnetContext, args interface{}) interface{}) (err error) {
+func (self *blueprint) Route(head string, proc interface{}) (err error) {
 	if _, ok := self.functionpool[head]; ok {
 		err = fmt.Errorf("please note that, head [%s] has been overwritten", head)
 	}
 
-	refType := reflect.TypeOf(args)
-	self.functionpool[head] = function{proc: proc, args: &sync.Pool{New: func() interface{} {
-		if refType.Kind() != reflect.Ptr {
-			return reflect.New(refType).Interface()
-		} else {
-			return reflect.New(refType.Elem()).Interface()
-		}
-	}}}
+	refType := reflect.TypeOf(proc)
+	self.functionpool[head] = sync.Pool{New: func() interface{} {
+		return reflect.New(refType.Elem()).Interface()
+	}}
 
 	return
 }

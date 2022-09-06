@@ -12,14 +12,14 @@ import (
 
 // Serialize 序列化器
 type Serialize interface {
-	NewEnCodec(w io.Writer) EnCode
-	NewDeCodec(r io.Reader) DeCode
+	NewEnCodec(w io.Writer) Encode
+	NewDeCodec(r io.Reader) Decode
 }
 
-type DeCode interface {
+type Decode interface {
 	Decode(x interface{}) (err error)
 }
 
-type EnCode interface {
+type Encode interface {
 	Encode(x interface{}) (err error)
 }

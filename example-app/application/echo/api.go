@@ -19,11 +19,11 @@ import (
 
 type JsonCodec struct{}
 
-func (self JsonCodec) NewEnCodec(w io.Writer) gnetws.EnCode {
+func (self JsonCodec) NewEnCodec(w io.Writer) gnetws.Encode {
 	return json.NewEncoder(w)
 }
 
-func (self JsonCodec) NewDeCodec(r io.Reader) gnetws.DeCode {
+func (self JsonCodec) NewDeCodec(r io.Reader) gnetws.Decode {
 	return json.NewDecoder(r)
 }
 
@@ -32,13 +32,11 @@ type Data struct {
 	Data map[string]string `json:"data"`
 }
 
+func (self *Data) Proc(ctx *eventserve.GnetContext) interface{} {
+	self.Data["resert"] = strconv.Itoa(int(time.Now().UnixNano()))
+	return self
+}
+
 func init() {
-	logrus.Info("echo Handler [ / ] router:", dstservice.Handler.Route(
-		"/", new(Data), new(JsonCodec),
-		func(ctx *eventserve.GnetContext, args interface{}) interface{} {
-			data := *args.(*Data)
-			data.Data["resert"] = strconv.Itoa(int(time.Now().UnixNano()))
-			return data
-		},
-	))
+	logrus.Info("echo Handler [ / ] router:", dstservice.Handler.Route("/", new(JsonCodec), new(Data)))
 }
