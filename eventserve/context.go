@@ -7,9 +7,9 @@
 package eventserve
 
 import (
+	"context"
 	"github.com/panjf2000/gnet/v2"
 	"github.com/panjf2000/gnet/v2/pkg/logging"
-	"golang.org/x/net/context"
 )
 
 const (
@@ -29,9 +29,9 @@ type GnetContext struct {
 }
 
 func WithWebSocketContext(ctx context.Context, logger logging.Logger, mate ...[2]interface{}) *GnetContext {
-	matedata := map[interface{}]interface{}{}
+	matedata := &MateData{}
 	for idx := range mate {
-		matedata[mate[idx][0]] = mate[idx][1]
+		matedata.SetInterface(mate[idx][0], mate[idx][1])
 	}
 
 	cancelctx, cancel := context.WithCancel(

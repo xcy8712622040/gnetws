@@ -20,6 +20,10 @@ import (
 	"sync"
 )
 
+const (
+	RequestHeader = "__request_header__"
+)
+
 type Method interface {
 	gnetws.Serialize
 	DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn)
@@ -123,9 +127,16 @@ type WebSocketUP struct {
 func (self *WebSocketUP) Proc(ctx *eventserve.GnetContext, conn gnet.Conn) error {
 	up := self.Upgrader
 	wh := self.WebSocketHandler
+	header := map[string]string{}
+	matedata := ctx.Value(eventserve.MATEDATA).(*eventserve.MateData)
 
 	up.OnRequest = func(uri []byte) error {
 		wh.Path = string(uri)
+		return nil
+	}
+
+	up.OnHeader = func(key, value []byte) error {
+		header[string(key)] = string(value)
 		return nil
 	}
 
@@ -134,6 +145,7 @@ func (self *WebSocketUP) Proc(ctx *eventserve.GnetContext, conn gnet.Conn) error
 	} else {
 		ctx.DoProc = &wh
 	}
+	matedata.SetInterface(RequestHeader, header)
 
 	return nil
 }
