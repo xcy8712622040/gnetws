@@ -31,7 +31,8 @@ type GnetContext struct {
 }
 
 func WithWebSocketContext(ctx context.Context, logger logging.Logger, mate ...[2]interface{}) *GnetContext {
-	matedata := &MateData{}
+	matedata := &MateData{lock: sync.RWMutex{}, data: map[interface{}]interface{}{}}
+
 	for idx := range mate {
 		matedata.SetInterface(mate[idx][0], mate[idx][1])
 	}
