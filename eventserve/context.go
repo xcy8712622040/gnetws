@@ -10,6 +10,7 @@ import (
 	"context"
 	"github.com/panjf2000/gnet/v2"
 	"github.com/panjf2000/gnet/v2/pkg/logging"
+	"sync"
 )
 
 const (
@@ -25,6 +26,7 @@ type GnetContext struct {
 
 	Cancel func()
 	DoProc Handler
+	Locker sync.Locker
 	Logger logging.Logger
 }
 
@@ -40,5 +42,5 @@ func WithWebSocketContext(ctx context.Context, logger logging.Logger, mate ...[2
 		),
 	)
 
-	return &GnetContext{Context: cancelctx, Cancel: cancel, Logger: logger}
+	return &GnetContext{Context: cancelctx, Cancel: cancel, Logger: logger, Locker: new(sync.Mutex)}
 }
