@@ -50,6 +50,8 @@ type ServerHandler struct {
 	logger  logging.Logger
 	factory FactoryHandler
 	todoctx context.Context
+
+	Plugins plugins
 }
 
 func NewHeanler(opts ...Option) *ServerHandler {
@@ -62,12 +64,14 @@ func NewHeanler(opts ...Option) *ServerHandler {
 	return handler
 }
 
-func (self *ServerHandler) OnShutdown(eng gnet.Engine) {}
-func (self *ServerHandler) OnBoot(_ gnet.Engine) (action gnet.Action) {
+func (self *ServerHandler) OnShutdown(eng gnet.Engine) {
+	self.Plugins.EventServerOnShutdown(eng)
+}
+func (self *ServerHandler) OnBoot(eng gnet.Engine) (action gnet.Action) {
 	if self.EventCron.Cron != nil {
 		self.EventCron.Init()
 	}
-	return action
+	return self.Plugins.EventServerOnBoot(eng)
 }
 
 func (self *ServerHandler) OnTick() (delay time.Duration, action gnet.Action) {
@@ -90,23 +94,31 @@ func (self *ServerHandler) OnOpen(conn gnet.Conn) (out []byte, action gnet.Actio
 		"OnOpen: client [%s] -> server [%s]", conn.RemoteAddr().String(), conn.LocalAddr().String(),
 	)
 
-	return
+	return self.Plugins.EventServerOnOpen(ctx)
 }
 
 func (self *ServerHandler) OnClose(conn gnet.Conn, err error) (action gnet.Action) {
-	if ctx := conn.Context(); ctx != nil {
-		ctx.(*GnetContext).Cancel()
+	var ctx *GnetContext
+
+	if v := conn.Context(); ctx != nil {
+		ctx = v.(*GnetContext)
+		defer ctx.Cancel()
 	}
 
 	self.logger.Debugf(
 		"OnClose: client [%s] -> server [%s] ERROR:[%s]", conn.RemoteAddr().String(), conn.LocalAddr().String(), err,
 	)
 
-	return
+	return self.Plugins.EventServerOnClose(ctx, err)
 }
 
 func (self *ServerHandler) OnTraffic(conn gnet.Conn) (action gnet.Action) {
 	ctx := conn.Context().(*GnetContext)
+
+	if action = self.Plugins.EventServerOnTrafficPre(ctx, conn.InboundBuffered()); action != gnet.None {
+		return action
+	}
+
 	if ctx.DoProc != nil {
 		if err := ctx.DoProc.Proc(ctx, conn); err != nil {
 			action = gnet.Close
@@ -118,6 +130,7 @@ func (self *ServerHandler) OnTraffic(conn gnet.Conn) (action gnet.Action) {
 			self.logger.Errorf("OnTraffic: client [%s]: %s", conn.RemoteAddr().String(), err)
 		}
 	}
+
 	return action
 }
 

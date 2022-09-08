@@ -26,7 +26,25 @@ const (
 
 type Method interface {
 	gnetws.Serialize
-	DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn)
+
+	Args() (x interface{})
+	DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn, x interface{})
+}
+
+func call(ctx *eventserve.GnetContext, hand websocket.Handler) interface{} {
+	defer func() {
+		var exception interface{}
+		switch exception = recover(); exception.(type) {
+		case nil:
+			return
+		case runtime.Error:
+			ctx.Logger.Errorf(string(debug.Stack()))
+		default:
+			ctx.Logger.Warnf("Do not use 'panic' in programs")
+		}
+		ctx.Logger.Errorf("Proc Call Error: %s", exception)
+	}()
+	return hand.Proc(ctx)
 }
 
 type root struct {
@@ -34,46 +52,36 @@ type root struct {
 	handler sync.Pool
 }
 
-func (self *root) DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn) {
-	x := self.handler.Get()
-	if err := self.NewDeCodec(conn.FrameReader()).Decode(x); err == nil {
-		conn.AwaitAdd()
-		if err = gnetws.GoroutinePool().Submit(func() {
-			defer func() {
-				conn.Free()
-				self.handler.Put(x)
-				var exception interface{}
-				switch exception = recover(); exception.(type) {
-				case nil:
-					return
-				case runtime.Error:
-					ctx.Logger.Errorf(string(debug.Stack()))
-				default:
-					ctx.Logger.Warnf("Do not use 'panic' in programs")
-				}
-				ctx.Logger.Errorf("Proc Call Error: %s", exception)
-			}()
+func (self *root) Args() (x interface{}) {
+	return self.handler.Get()
+}
 
-			handler := x.(websocket.Handler)
-			text := conn.WebSocketTextWriter()
-			if err = self.NewEnCodec(text).Encode(handler.Proc(ctx)); err == nil {
-				if err = text.Flush(); err != nil {
-					ctx.Logger.Errorf("WebSocketTextWriter Flush Error: %s", err)
-				}
-			} else {
-				ctx.Logger.Errorf("Encode Error: %s", err)
-			}
-		}); err != nil {
+func (self *root) DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn, x interface{}) {
+	conn.AwaitAdd()
+	if err := gnetws.GoroutinePool().Submit(func() {
+		defer func() {
 			conn.Free()
-			ctx.Logger.Errorf("GoroutinePool Submit Error: %s", err)
+			self.handler.Put(x)
+		}()
+
+		handler := x.(websocket.Handler)
+		text := conn.WebSocketTextWriter()
+		if err := self.NewEnCodec(text).Encode(call(ctx, handler)); err == nil {
+			if err = text.Flush(); err != nil {
+				ctx.Logger.Errorf("WebSocketTextWriter Flush Error: %s", err)
+			}
+		} else {
+			ctx.Logger.Errorf("Encode Error: %s", err)
 		}
-	} else {
-		ctx.Logger.Errorf("DoProc Error: %s", err)
+	}); err != nil {
+		conn.Free()
+		ctx.Logger.Errorf("GoroutinePool Submit Error: %s", err)
 	}
 }
 
 type WebSocketHandler struct {
 	Path       string
+	Plugins    *plugins
 	methodpool map[string]Method
 }
 
@@ -87,7 +95,12 @@ func (self *WebSocketHandler) Proc(ctx *eventserve.GnetContext, conn gnet.Conn) 
 		}
 
 		if method, ok := self.methodpool[self.Path]; ok {
-			method.DoProc(ctx, frame)
+			x := method.Args()
+			if err = method.NewDeCodec(frame.FrameReader()).Decode(x); err == nil {
+				method.DoProc(ctx, frame, x)
+			} else {
+				ctx.Logger.Errorf("DoProc Error: %s", err)
+			}
 		} else {
 			return fmt.Errorf("path [ %s ] non-existent", self.Path)
 		}
@@ -147,13 +160,14 @@ func (self *WebSocketUP) Proc(ctx *eventserve.GnetContext, conn gnet.Conn) error
 	}
 	matedata.SetInterface(RequestHeader, header)
 
-	return nil
+	return self.Plugins.WsOnUpgrader(ctx)
 }
 
 func NewWebSocketHandler() *WebSocketUP {
 	return &WebSocketUP{
 		WebSocketHandler: WebSocketHandler{
 			methodpool: map[string]Method{},
+			Plugins:    &plugins{mutex: sync.Mutex{}, storage: []websocket.WsPlugin{}},
 		},
 	}
 }

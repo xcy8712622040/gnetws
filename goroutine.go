@@ -22,7 +22,7 @@ var (
 	ExpiryDuration = 10 * time.Second
 
 	// DefaultAntsPoolSize sets up the capacity of worker pool, 1024 * cpu.
-	DefaultAntsPoolSize = (1 << 10) * runtime.NumCPU()
+	DefaultAntsPoolSize = (1 << 10) * runtime.NumCPU() * 2
 )
 
 type Pool = *ants.Pool

@@ -13,8 +13,6 @@ import (
 	"github.com/xcy8712622040/gnetws/net-protocol/websocket"
 	"io"
 	"reflect"
-	"runtime"
-	"runtime/debug"
 	"sync"
 )
 
@@ -30,53 +28,41 @@ type blueprint struct {
 	functionpool map[string]sync.Pool
 }
 
-func (self *blueprint) DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn) {
-	x := self.args.Get()
-	defer self.args.Put(x)
+func (self *blueprint) Args() (x interface{}) {
+	return self.args.Get()
+}
 
-	if err := self.NewDeCodec(conn.FrameReader()).Decode(x); err != nil {
-		ctx.Logger.Errorf("DoProc Decode Error: %s", err)
-	} else {
-		conn.AwaitAdd()
-		if err = gnetws.GoroutinePool().Submit(func() {
-			defer func() {
-				conn.Free()
-				var exception interface{}
-				switch exception = recover(); exception.(type) {
-				case nil:
-					return
-				case runtime.Error:
-					ctx.Logger.Errorf(string(debug.Stack()))
-				default:
-					ctx.Logger.Warnf("Do not use 'panic' in programs")
-				}
-				ctx.Logger.Errorf("Proc Call Error: %s", exception)
-			}()
+func (self *blueprint) DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn, x interface{}) {
+	conn.AwaitAdd()
+	if err := gnetws.GoroutinePool().Submit(func() {
+		defer func() {
+			conn.Free()
+			self.args.Put(x)
+		}()
 
-			pkt := x.(Packet)
-			if f, ok := self.functionpool[pkt.Head()]; ok {
-				data := f.Get()
-				defer f.Put(data)
-				if err = self.NewDeCodec(pkt).Decode(data); err == nil {
-					handler := data.(websocket.Handler)
-					text := conn.WebSocketTextWriter()
-					if err = self.NewEnCodec(text).Encode(handler.Proc(ctx)); err == nil {
-						if err = text.Flush(); err != nil {
-							ctx.Logger.Errorf("WebSocketTextWriter Flush Error: %s", err)
-						}
-					} else {
-						ctx.Logger.Errorf("Encode Error: %s", err)
+		pkt := x.(Packet)
+		if f, ok := self.functionpool[pkt.Head()]; ok {
+			data := f.Get()
+			defer f.Put(data)
+			if err := self.NewDeCodec(pkt).Decode(data); err == nil {
+				handler := data.(websocket.Handler)
+				text := conn.WebSocketTextWriter()
+				if err = self.NewEnCodec(text).Encode(call(ctx, handler)); err == nil {
+					if err = text.Flush(); err != nil {
+						ctx.Logger.Errorf("WebSocketTextWriter Flush Error: %s", err)
 					}
 				} else {
-					ctx.Logger.Errorf("Proc Decode Error: %s", err)
+					ctx.Logger.Errorf("Encode Error: %s", err)
 				}
 			} else {
-				ctx.Logger.Errorf("function [%s] non-existent", pkt.Head())
+				ctx.Logger.Errorf("Proc Decode Error: %s", err)
 			}
-		}); err != nil {
-			conn.Free()
-			ctx.Logger.Errorf("GoroutinePool Submit Error: %s", err)
+		} else {
+			ctx.Logger.Errorf("function [%s] non-existent", pkt.Head())
 		}
+	}); err != nil {
+		conn.Free()
+		ctx.Logger.Errorf("GoroutinePool Submit Error: %s", err)
 	}
 }
 
