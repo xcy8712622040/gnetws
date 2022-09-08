@@ -30,6 +30,14 @@ type GnetContext struct {
 	Logger logging.Logger
 }
 
+// Value 获取上下文变量
+func (c *GnetContext) Value(key interface{}) interface{} {
+	if val := c.Context.Value(key); val != nil {
+		return val
+	}
+	return c.Context.Value(MATEDATA).(map[interface{}]interface{})[key]
+}
+
 func WithWebSocketContext(ctx context.Context, logger logging.Logger, mate ...[2]interface{}) *GnetContext {
 	matedata := &MateData{lock: sync.RWMutex{}, data: map[interface{}]interface{}{}}
 

@@ -58,7 +58,7 @@ func (self *Broadcast) RegisterConn(c gnet.Conn) {
 	self.storage.Store(c, struct{}{})
 }
 
-func (self *Broadcast) SendMessage(x any) (err error) {
+func (self *Broadcast) SendMessage(x interface{}) (err error) {
 	if err = self.codec.NewEnCodec(self.pack).Encode(x); err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (self *Broadcast) SendMessage(x any) (err error) {
 func (self *Broadcast) emit() {
 	defer func() { <-self.running }()
 	for pk := self.pack.SubPackage(); pk != nil; pk = self.pack.SubPackage() {
-		self.storage.Range(func(key, value any) bool {
+		self.storage.Range(func(key, value interface{}) bool {
 			_ = key.(gnet.Conn).AsyncWrite(pk, nil)
 			return true
 		})

@@ -1,13 +1,12 @@
 module github.com/xcy8712622040/gnetws
 
-go 1.18
+go 1.17
 
 require (
 	github.com/gobwas/ws v1.1.0
 	github.com/panjf2000/ants/v2 v2.5.0
 	github.com/panjf2000/gnet/v2 v2.0.3
 	github.com/sirupsen/logrus v1.8.1
-	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
 )
 
 require (
