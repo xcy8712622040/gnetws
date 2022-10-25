@@ -35,7 +35,7 @@ func (c *GnetContext) Value(key interface{}) interface{} {
 	if val := c.Context.Value(key); val != nil {
 		return val
 	}
-	return c.Context.Value(MATEDATA).(map[interface{}]interface{})[key]
+	return c.Context.Value(MATEDATA).(*MateData).GetInterface(key)
 }
 
 func WithWebSocketContext(ctx context.Context, logger logging.Logger, mate ...[2]interface{}) *GnetContext {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"github.com/panjf2000/gnet/v2"
 	"github.com/sirupsen/logrus"
 	"github.com/xcy8712622040/gnetws/cron-3"
@@ -11,7 +12,9 @@ import (
 	"github.com/xcy8712622040/gnetws/net-protocol/websocket/dstservice"
 	"log"
 	"os/signal"
+	"runtime"
 	"syscall"
+	"time"
 )
 
 var ProtoAddr = flag.String("addr", "tcp://:8080", "listener addr")
@@ -36,10 +39,10 @@ func main() {
 		syscall.SIGABRT, // abort函数触发
 	)
 
-	//_, _ = Serve.AddFunc("*/1 * * * * *", func() {
-	//	logrus.Info("NumGoroutine:", runtime.NumGoroutine())
-	//	fmt.Println("1", time.Now().Format("2006-01-02 15:04:05"))
-	//})
+	_, _ = Serve.AddFunc("*/1 * * * * *", func() {
+		logrus.Info("NumGoroutine:", runtime.NumGoroutine())
+		fmt.Println("1", time.Now().Format("2006-01-02 15:04:05"))
+	})
 
 	// Serve.Plugins.Add()
 	// dstservice.Handler.Plugins.Add()
