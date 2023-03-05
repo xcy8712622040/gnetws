@@ -1,9 +1,3 @@
-/******************************
- * @Developer: many
- * @File: wsclient.go
- * @Time: 2022/6/22 9:33
-******************************/
-
 package websocketcli
 
 import (
@@ -18,6 +12,10 @@ type WebsocketClient struct {
 	conn   net.Conn
 	reader *wsutil.Reader
 	writer *wsutil.Writer
+}
+
+func (w *WebsocketClient) Close() error {
+	return w.conn.Close()
 }
 
 func (w *WebsocketClient) Dial(ctx context.Context, url string) (err error) {

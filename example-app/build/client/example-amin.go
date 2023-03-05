@@ -1,12 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"github.com/xcy8712622040/gnetws/net-protocol/websocket/websocketcli"
-	"io"
 	"log"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -16,8 +16,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	ctx, stop := signal.NotifyContext(context.TODO(), syscall.SIGINT)
+
 	var recv, send int64
-	read := bytes.NewBuffer(make([]byte, 0))
+	//read := bytes.NewBuffer(make([]byte, 0))
 	ppt := time.NewTicker(time.Second)
 	go func() {
 		for {
@@ -26,27 +28,31 @@ func main() {
 		}
 	}()
 
-	go func() {
-		var err error
-		defer func() { fmt.Println("receive exit:", err) }()
-		for _, err = cli.Recv(read); err == nil; _, err = cli.Recv(read) {
-			if _, err := io.ReadAll(read); err != nil {
-				break
-			} else {
-				recv++
-			}
-		}
-	}()
+	//go func() {
+	//	var err error
+	//	defer func() { fmt.Println("receive exit:", err) }()
+	//	for _, err = cli.Recv(read); err == nil; _, err = cli.Recv(read) {
+	//		if _, err := io.ReadAll(read); err != nil {
+	//			break
+	//		} else {
+	//			recv++
+	//		}
+	//	}
+	//}()
 
 	var err error
 	ticker := time.NewTicker(10 * time.Microsecond)
-	defer func() { fmt.Println("send exit:", err) }()
+	defer func() { stop(); fmt.Println("send exit:", err) }()
 	for {
-		<-ticker.C
-		if _, err = cli.Send([]byte(`{"head":"test", "data":{"a":"111111"}}`)); err != nil {
-			break
-		} else {
-			send++
+		select {
+		case <-ticker.C:
+			if _, err = cli.Send([]byte(`{"head":"test", "data":{"a":"111111"}}`)); err != nil {
+				break
+			} else {
+				send++
+			}
+		case <-ctx.Done():
+			return
 		}
 	}
 }

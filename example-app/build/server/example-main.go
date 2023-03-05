@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"github.com/panjf2000/gnet/v2"
 	"github.com/sirupsen/logrus"
 	"github.com/xcy8712622040/gnetws/cron-3"
@@ -14,7 +13,6 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
-	"time"
 )
 
 var ProtoAddr = flag.String("addr", "tcp://:8080", "listener addr")
@@ -32,19 +30,24 @@ func main() {
 	logrus.SetFormatter(new(logrus.JSONFormatter))
 
 	Serve := serverhandler.NewHandler(
-		serverhandler.WithCronOnTicker(cron.New(cron.WithSeconds())),
+		serverhandler.WithCron(cron.New(cron.WithSeconds())),
 		serverhandler.WithLogger(logrus.WithField("kind", "test")),
 	)
 
-	Serve.Plugins.Add(new(WithDefaultService)) // 注册逻辑处理器
+	Serve.Plugins().Add(new(WithDefaultService)) // 注册逻辑处理器
 
 	ctx, cancel := signal.NotifyContext(context.Background(),
 		syscall.SIGINT, // Ctrl+C
 	)
 
-	_, _ = Serve.AddFunc("*/1 * * * * *", func() {
-		logrus.Info("NumGoroutine:", runtime.NumGoroutine())
-		fmt.Println("1", time.Now().Format("2006-01-02 15:04:05"))
+	_, _ = Serve.Cron().AddFunc("*/1 * * * * *", func() {
+		ms := runtime.MemStats{}
+		runtime.ReadMemStats(&ms)
+		logrus.Infof(
+			"NumGoroutine:%d  MemAlloc:%dMB",
+			runtime.NumGoroutine(),
+			ms.Sys/1024/1024,
+		)
 	})
 
 	defer cancel()

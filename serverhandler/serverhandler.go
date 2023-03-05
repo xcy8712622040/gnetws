@@ -14,120 +14,150 @@ const (
 	HandlerServer = "__Handler_server__"
 )
 
-type Option func(s *ServerHandler)
+type Option func(s *Handler)
 
 func WithLogger(log logging.Logger) Option {
-	return func(s *ServerHandler) {
-		s.Logger = log
+	return func(s *Handler) {
+		s.logger = log
 	}
 }
 
-func WithCronOnTicker(c *cron.Cron) Option {
-	return func(s *ServerHandler) {
-		s.Cron = c
+func WithCron(c *cron.Cron) Option {
+	return func(s *Handler) {
+		s.EventCron.Cron = c
 	}
 }
 
-type ServerHandler struct {
+type ServerHandler interface {
+	gnet.EventHandler
+
+	Cron() *cron.Cron
+	Plugins() *Plugins
+	Start(ctx context.Context, addr string, opts ...gnet.Option) error
+}
+
+type Handler struct {
 	cron.EventCron
-	logging.Logger
 
-	addr    string
-	Plugins plugins
+	plugins Plugins
 
-	ctx context.Context
+	engine gnet.Engine
+
+	logger logging.Logger
+
+	context    context.Context
+	cancelFunc context.CancelFunc
 }
 
-func NewHandler(opts ...Option) *ServerHandler {
-	handler := new(ServerHandler)
+func NewHandler(opts ...Option) ServerHandler {
+	handler := new(Handler)
 
 	for _, opt := range opts {
 		opt(handler)
 	}
 
+	handler.context, handler.cancelFunc = context.WithCancel(context.TODO())
+
 	return handler
 }
 
-func (s *ServerHandler) OnShutdown(eng gnet.Engine) {
-	s.Plugins.EventServerOnShutdown(eng)
-}
-
-func (s *ServerHandler) OnBoot(eng gnet.Engine) (action gnet.Action) {
-	go func() {
-		<-s.ctx.Done()
-		s.Warnf("server handler exit. cause: ", s.ctx.Err())
-
-		func(err error) {
-			if err != nil {
-				s.Errorf("server handler stop error: %s", err.Error())
-			}
-		}(eng.Stop(context.Background()))
-	}()
-
-	if s.EventCron.Cron != nil {
-		s.EventCron.Init()
+func (h *Handler) Cron() *cron.Cron {
+	if h.EventCron.Cron == nil {
+		h.EventCron.Cron = cron.New()
+		println("=====================")
 	}
-	return s.Plugins.EventServerOnBoot(eng)
+
+	return h.EventCron.Cron
 }
 
-func (s *ServerHandler) OnTick() (delay time.Duration, action gnet.Action) {
-	return s.EventCron.Ticker()
+func (h *Handler) Plugins() *Plugins { return &h.plugins }
+
+func (h *Handler) OnShutdown(eng gnet.Engine) {
+	defer h.cancelFunc()
+	h.plugins.EventServerOnShutdown(eng)
 }
 
-func (s *ServerHandler) OnOpen(conn gnet.Conn) (out []byte, action gnet.Action) {
+func (h *Handler) OnBoot(eng gnet.Engine) (action gnet.Action) {
+	h.engine = eng
+	if h.EventCron.Cron != nil {
+		h.EventCron.Init()
+	}
+	return h.plugins.EventServerOnBoot(eng)
+}
+
+func (h *Handler) OnTick() (delay time.Duration, action gnet.Action) {
+	return h.EventCron.Ticker()
+}
+
+func (h *Handler) OnOpen(conn gnet.Conn) (out []byte, action gnet.Action) {
 	ctx := WithContext(
-		s.ctx,
-		s.Logger,
+		h.context, h.logger,
 		[2]interface{}{Conn, conn},
-		[2]interface{}{HandlerServer, s},
+		[2]interface{}{HandlerServer, h},
 	)
 
 	conn.SetContext(ctx)
 
-	s.Debugf(
+	h.logger.Debugf(
 		"OnOpen: client [%s] -> server handler [%s]",
 		conn.RemoteAddr().String(), conn.LocalAddr().String(),
 	)
 
-	return s.Plugins.EventServerOnOpen(ctx)
+	return h.plugins.EventServerOnOpen(ctx)
 }
 
-func (s *ServerHandler) OnClose(conn gnet.Conn, err error) (action gnet.Action) {
+func (h *Handler) OnClose(conn gnet.Conn, err error) (action gnet.Action) {
 	var ctx *Context
 
 	if v := conn.Context(); ctx != nil {
-		defer v.(*Context).Close()
+		defer func() {
+			ctx.Close()
+		}()
+		ctx = v.(*Context)
 	}
 
-	s.Debugf(
-		"OnClose: client [%s] -> server handler [%s] ERROR:[%s]",
+	h.logger.Debugf(
+		"OnClose: client [%s] -> server [%s] ERROR:[%s]",
 		conn.RemoteAddr().String(), conn.LocalAddr().String(), err,
 	)
 
-	return s.Plugins.EventServerOnClose(ctx, err)
+	return h.plugins.EventServerOnClose(ctx, err)
 }
 
-func (s *ServerHandler) OnTraffic(conn gnet.Conn) (action gnet.Action) {
+func (h *Handler) OnTraffic(conn gnet.Conn) (action gnet.Action) {
 	ctx := conn.Context().(*Context)
 
-	if action = s.Plugins.EventServerOnTrafficPre(ctx, conn.InboundBuffered()); action != gnet.None {
+	if action = h.plugins.EventServerOnTrafficPre(ctx, conn.InboundBuffered()); action != gnet.None {
 		return action
 	}
 
 	if err := ctx.WithConn(conn); err != nil {
 		action = gnet.Close
-		s.Errorf("OnTraffic: client [%s]: %s", conn.RemoteAddr().String(), err)
+		h.logger.Errorf("OnTraffic: client [%s]: %s", conn.RemoteAddr().String(), err)
 	}
 
 	return action
 }
 
-func (s *ServerHandler) Start(ctx context.Context, addr string, opts ...gnet.Option) error {
-	s.ctx, s.addr = ctx, addr
-
-	if s.Logger == nil {
-		s.Logger = logrus.New()
+func (h *Handler) Start(ctx context.Context, addr string, opts ...gnet.Option) error {
+	if h.logger == nil {
+		h.logger = logrus.New()
 	}
 
-	return gnet.Run(s, addr, append([]gnet.Option{gnet.WithLogger(s.Logger)}, opts...)...)
+	go func() {
+		<-ctx.Done()
+		h.logger.Warnf("server handler exit. cause: ", ctx.Err())
+
+		if h.engine.CountConnections() == -1 {
+			return
+		} else {
+			func(err error) {
+				if err != nil {
+					h.logger.Errorf("server handler stop error: %s", err.Error())
+				}
+			}(h.engine.Stop(context.Background()))
+		}
+	}()
+
+	return gnet.Run(h, addr, append([]gnet.Option{gnet.WithLogger(h.logger)}, opts...)...)
 }

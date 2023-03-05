@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/gobwas/ws v1.1.0
 	github.com/panjf2000/ants/v2 v2.7.1
-	github.com/panjf2000/gnet/v2 v2.2.2
+	github.com/panjf2000/gnet/v2 v2.2.5
 	github.com/sirupsen/logrus v1.8.1
 )
 

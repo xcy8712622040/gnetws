@@ -35,18 +35,18 @@ type (
 	}
 )
 
-type plugins struct {
+type Plugins struct {
 	mutex   sync.Mutex
 	storage []EventPlugin
 }
 
-func (p *plugins) Add(plugin EventPlugin) {
+func (p *Plugins) Add(plugin EventPlugin) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	p.storage = append(p.storage, plugin)
 }
 
-func (p *plugins) EventServerOnBoot(eng gnet.Engine) (action gnet.Action) {
+func (p *Plugins) EventServerOnBoot(eng gnet.Engine) (action gnet.Action) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
@@ -62,7 +62,7 @@ func (p *plugins) EventServerOnBoot(eng gnet.Engine) (action gnet.Action) {
 	return gnet.None
 }
 
-func (p *plugins) EventServerOnShutdown(eng gnet.Engine) {
+func (p *Plugins) EventServerOnShutdown(eng gnet.Engine) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
@@ -74,7 +74,7 @@ func (p *plugins) EventServerOnShutdown(eng gnet.Engine) {
 	}
 }
 
-func (p *plugins) EventServerOnOpen(c *Context) (out []byte, action gnet.Action) {
+func (p *Plugins) EventServerOnOpen(c *Context) (out []byte, action gnet.Action) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
@@ -93,7 +93,7 @@ func (p *plugins) EventServerOnOpen(c *Context) (out []byte, action gnet.Action)
 	return out[:w.Len()], action
 }
 
-func (p *plugins) EventServerOnClose(c *Context, e error) (action gnet.Action) {
+func (p *Plugins) EventServerOnClose(c *Context, e error) (action gnet.Action) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
@@ -108,7 +108,7 @@ func (p *plugins) EventServerOnClose(c *Context, e error) (action gnet.Action) {
 	return action
 }
 
-func (p *plugins) EventServerOnTrafficPre(c *Context, size int) (action gnet.Action) {
+func (p *Plugins) EventServerOnTrafficPre(c *Context, size int) (action gnet.Action) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 

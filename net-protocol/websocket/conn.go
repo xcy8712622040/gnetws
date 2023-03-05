@@ -4,6 +4,7 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/panjf2000/gnet/v2"
+	"github.com/xcy8712622040/gnetws/serverhandler"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -34,6 +35,15 @@ type Conn struct {
 	writer   *TextWriter
 	reader   *wsutil.Reader
 	limitRdr *io.LimitedReader
+}
+
+func (c *Conn) Write(buf []byte) (int, error) {
+	return len(buf), c.AsyncWrite(buf, func(c gnet.Conn, err error) error {
+		if ctx := c.Context(); err != nil && ctx != nil {
+			ctx.(*serverhandler.Context).Logger().Errorf("ws conn write error:%s", err)
+		}
+		return nil
+	})
 }
 
 func (c *Conn) Free() {
