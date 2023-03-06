@@ -64,7 +64,6 @@ func NewHandler(opts ...Option) ServerHandler {
 func (h *Handler) Cron() *cron.Cron {
 	if h.EventCron.Cron == nil {
 		h.EventCron.Cron = cron.New()
-		println("=====================")
 	}
 
 	return h.EventCron.Cron

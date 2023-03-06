@@ -9,7 +9,6 @@ import (
 	"io"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 var pool = sync.Pool{}
@@ -41,7 +40,7 @@ type Conn struct {
 
 func (c *Conn) Write(buf []byte) (int, error) {
 	return len(buf), c.AsyncWrite(buf, func() func(c gnet.Conn, err error) error {
-		m := time.Now()
+		//m := time.Now()
 		return func(c gnet.Conn, err error) error {
 			var (
 				ok  bool
@@ -54,7 +53,7 @@ func (c *Conn) Write(buf []byte) (int, error) {
 				ctx.Logger().Errorf("ws conn write error:%s", err)
 			}
 			// 输出异步写入耗时
-			ctx.Logger().Debugf("[%s] async write elapsed time: %dms", c.RemoteAddr().String(), time.Now().Sub(m).Milliseconds())
+			//ctx.Logger().Debugf("[%s] async write elapsed time: %dms", c.RemoteAddr().String(), time.Now().Sub(m).Milliseconds())
 			return nil
 		}
 	}())

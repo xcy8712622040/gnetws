@@ -50,7 +50,7 @@ func NewBroadcast(pack Packing, codec Serialize) *Broadcast {
 	}
 }
 
-func (b *Broadcast) WriteOffConn(c gnet.Conn) {
+func (b *Broadcast) WithOffConn(c gnet.Conn) {
 	b.storage.Delete(c)
 }
 

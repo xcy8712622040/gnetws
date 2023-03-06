@@ -38,5 +38,8 @@ func (d *Data) Proc(ctx *serverhandler.Context) interface{} {
 }
 
 func init() {
-	logrus.Info("echo Handler [ / ] router:", dstservice.GlobalService.Route("/", new(JsonCodec), new(Data)))
+	_, err := dstservice.GlobalService.Route(
+		"/", new(JsonCodec), new(Data),
+	)
+	logrus.Info("echo Handler [ / ] router:", err)
 }

@@ -25,7 +25,11 @@ type blueprint struct {
 
 	argsPool     sync.Pool
 	functionPool map[string]sync.Pool
+
+	plugins *Plugins
 }
+
+func (b *blueprint) Plugins() *Plugins { return b.plugins }
 
 func (b *blueprint) Args() (x interface{}) {
 	return b.argsPool.Get()
@@ -44,14 +48,22 @@ func (b *blueprint) DoProc(ctx *serverhandler.Context, conn *websocket.Conn, x i
 			data := f.Get()
 			defer f.Put(data)
 			if err := b.NewDeCodec(pkt).Decode(data); err == nil {
-				handler := data.(websocket.Handler)
-				text := conn.WebSocketTextWriter()
-				if err = b.NewEnCodec(text).Encode(call(ctx, handler)); err == nil {
-					if err = text.Flush(); err != nil {
-						ctx.Logger().Errorf("WebSocketTextWriter Flush Error: %s", err)
-					}
+				if err = b.plugins.WsOnCallPre(ctx, data); err != nil {
+					ctx.Logger().Errorf("ServicePlugin WsOnCallPre Error: %s", err)
 				} else {
-					ctx.Logger().Errorf("Encode Error: %s", err)
+					reply := call(ctx, data.(websocket.Handler))
+					if err = b.plugins.WsOnCallPost(ctx, x, reply); err != nil {
+						ctx.Logger().Errorf("ServicePlugin WsOnCallPost Error: %s", err)
+					} else {
+						text := conn.WebSocketTextWriter()
+						if err = b.NewEnCodec(text).Encode(reply); err == nil {
+							if err = text.Flush(); err != nil {
+								ctx.Logger().Errorf("WebSocketTextWriter Flush Error: %s", err)
+							}
+						} else {
+							ctx.Logger().Errorf("Encode Error: %s", err)
+						}
+					}
 				}
 			} else {
 				ctx.Logger().Errorf("Proc Decode Error: %s", err)

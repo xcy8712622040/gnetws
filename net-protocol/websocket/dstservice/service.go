@@ -22,6 +22,8 @@ const (
 type Proc interface {
 	gnetws.Serialize
 
+	Plugins() *Plugins
+
 	Args() (x interface{})
 	DoProc(ctx *serverhandler.Context, conn *websocket.Conn, x interface{})
 }
@@ -45,7 +47,11 @@ func call(ctx *serverhandler.Context, hand websocket.Handler) interface{} {
 type root struct {
 	gnetws.Serialize
 	argsPool sync.Pool
+
+	plugins *Plugins
 }
+
+func (r *root) Plugins() *Plugins { return r.plugins }
 
 func (r *root) Args() (x interface{}) {
 	return r.argsPool.Get()
@@ -59,14 +65,22 @@ func (r *root) DoProc(ctx *serverhandler.Context, conn *websocket.Conn, x interf
 			r.argsPool.Put(x)
 		}()
 
-		handler := x.(websocket.Handler)
-		text := conn.WebSocketTextWriter()
-		if err := r.NewEnCodec(text).Encode(call(ctx, handler)); err == nil {
-			if err = text.Flush(); err != nil {
-				ctx.Logger().Errorf("WebSocketTextWriter Flush Error: %s", err)
-			}
+		if err := r.plugins.WsOnCallPre(ctx, x); err != nil {
+			ctx.Logger().Errorf("ServicePlugin WsOnCallPre Error: %s", err)
 		} else {
-			ctx.Logger().Errorf("Encode Error: %s", err)
+			reply := call(ctx, x.(websocket.Handler))
+			if err = r.plugins.WsOnCallPost(ctx, x, reply); err != nil {
+				ctx.Logger().Errorf("ServicePlugin WsOnCallPost Error: %s", err)
+			} else {
+				text := conn.WebSocketTextWriter()
+				if err = r.NewEnCodec(text).Encode(reply); err == nil {
+					if err = text.Flush(); err != nil {
+						ctx.Logger().Errorf("WebSocketTextWriter Flush Error: %s", err)
+					}
+				} else {
+					ctx.Logger().Errorf("Encode Error: %s", err)
+				}
+			}
 		}
 	}); err != nil {
 		conn.Free()
@@ -77,7 +91,7 @@ func (r *root) DoProc(ctx *serverhandler.Context, conn *websocket.Conn, x interf
 type WebSocketFrameHandler struct {
 	method Proc
 
-	Plugins *plugins
+	Plugins *websocket.Plugins
 }
 
 func (w *WebSocketFrameHandler) WithConn(ctx *serverhandler.Context, conn gnet.Conn) error {
@@ -108,25 +122,32 @@ type WebSocketUpgradeHandle struct {
 
 func (w *WebSocketUpgradeHandle) Blueprint(path string, args Packet, codec gnetws.Serialize) Blueprint {
 	refType := reflect.TypeOf(args)
-	w.methodMap[path] = &blueprint{Serialize: codec, functionPool: map[string]sync.Pool{}, argsPool: sync.Pool{
-		New: func() interface{} {
-			return reflect.New(refType.Elem()).Interface()
-		},
-	}}
+	w.methodMap[path] = &blueprint{
+		Serialize:    codec,
+		plugins:      NewPlugins(),
+		functionPool: map[string]sync.Pool{}, argsPool: sync.Pool{
+			New: func() interface{} {
+				return reflect.New(refType.Elem()).Interface()
+			},
+		}}
 	return w.methodMap[path].(*blueprint)
 }
 
-func (w *WebSocketUpgradeHandle) Route(path string, codec gnetws.Serialize, proc websocket.Handler) (err error) {
+func (w *WebSocketUpgradeHandle) Route(path string, codec gnetws.Serialize, proc websocket.Handler) (route Proc, err error) {
 	if _, ok := w.methodMap[path]; ok {
 		err = fmt.Errorf("please note that, path [%s] has been overwritten", path)
 	}
 
 	refType := reflect.TypeOf(proc)
-	w.methodMap[path] = &root{Serialize: codec, argsPool: sync.Pool{New: func() interface{} {
-		return reflect.New(refType.Elem()).Interface()
-	}}}
+	w.methodMap[path] = &root{
+		Serialize: codec,
+		plugins:   NewPlugins(),
+		argsPool: sync.Pool{New: func() interface{} {
+			return reflect.New(refType.Elem()).Interface()
+		}},
+	}
 
-	return
+	return w.methodMap[path], err
 }
 
 func (w *WebSocketUpgradeHandle) WithConn(ctx *serverhandler.Context, conn gnet.Conn) error {
@@ -158,7 +179,7 @@ func (w *WebSocketUpgradeHandle) WithConn(ctx *serverhandler.Context, conn gnet.
 	}
 	ctx.MetaData().SetInterface(RequestHeader, header)
 
-	return w.Plugins.WsOnUpgrade(ctx)
+	return w.Plugins.WsOnUpgrade(ctx, conn)
 }
 
 var GlobalService = NewWebSocketHandler()
@@ -167,10 +188,7 @@ func NewWebSocketHandler() *WebSocketUpgradeHandle {
 	return &WebSocketUpgradeHandle{
 		methodMap: map[string]Proc{},
 		WebSocketFrameHandler: WebSocketFrameHandler{
-			Plugins: &plugins{
-				mutex:   sync.Mutex{},
-				storage: []websocket.WsPlugin{},
-			},
+			Plugins: websocket.NewPlugins(),
 		},
 	}
 }
