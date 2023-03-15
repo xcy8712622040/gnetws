@@ -1,9 +1,3 @@
-/******************************
- * @Developer: hippo01
- * @File: goroutine.go
- * @Time: 2022/4/2 14:50
-******************************/
-
 package gnetws
 
 import (

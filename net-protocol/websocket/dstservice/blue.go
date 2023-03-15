@@ -1,20 +1,19 @@
-/******************************
- * @Developer: many
- * @File: blue.go
- * @Time: 2022/6/6 14:40
-******************************/
-
 package dstservice
 
 import (
 	"fmt"
 	"github.com/xcy8712622040/gnetws"
-	"github.com/xcy8712622040/gnetws/eventserve"
 	"github.com/xcy8712622040/gnetws/net-protocol/websocket"
+	"github.com/xcy8712622040/gnetws/serverhandler"
 	"io"
 	"reflect"
 	"sync"
 )
+
+type Blueprint interface {
+	Proc
+	Route(head string, proc interface{}) (err error)
+}
 
 type Packet interface {
 	io.Reader
@@ -24,55 +23,55 @@ type Packet interface {
 type blueprint struct {
 	gnetws.Serialize
 
-	args         sync.Pool
-	functionpool map[string]sync.Pool
+	argsPool     sync.Pool
+	functionPool map[string]sync.Pool
 }
 
-func (self *blueprint) Args() (x interface{}) {
-	return self.args.Get()
+func (b *blueprint) Args() (x interface{}) {
+	return b.argsPool.Get()
 }
 
-func (self *blueprint) DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn, x interface{}) {
-	conn.AwaitAdd()
+func (b *blueprint) DoProc(ctx *serverhandler.Context, conn *websocket.Conn, x interface{}) {
+	conn.AddCite()
 	if err := gnetws.GoroutinePool().Submit(func() {
 		defer func() {
 			conn.Free()
-			self.args.Put(x)
+			b.argsPool.Put(x)
 		}()
 
 		pkt := x.(Packet)
-		if f, ok := self.functionpool[pkt.Head()]; ok {
+		if f, ok := b.functionPool[pkt.Head()]; ok {
 			data := f.Get()
 			defer f.Put(data)
-			if err := self.NewDeCodec(pkt).Decode(data); err == nil {
+			if err := b.NewDeCodec(pkt).Decode(data); err == nil {
 				handler := data.(websocket.Handler)
 				text := conn.WebSocketTextWriter()
-				if err = self.NewEnCodec(text).Encode(call(ctx, handler)); err == nil {
+				if err = b.NewEnCodec(text).Encode(call(ctx, handler)); err == nil {
 					if err = text.Flush(); err != nil {
-						ctx.Logger.Errorf("WebSocketTextWriter Flush Error: %s", err)
+						ctx.Logger().Errorf("WebSocketTextWriter Flush Error: %s", err)
 					}
 				} else {
-					ctx.Logger.Errorf("Encode Error: %s", err)
+					ctx.Logger().Errorf("Encode Error: %s", err)
 				}
 			} else {
-				ctx.Logger.Errorf("Proc Decode Error: %s", err)
+				ctx.Logger().Errorf("Proc Decode Error: %s", err)
 			}
 		} else {
-			ctx.Logger.Errorf("function [%s] non-existent", pkt.Head())
+			ctx.Logger().Errorf("function [%s] non-existent", pkt.Head())
 		}
 	}); err != nil {
 		conn.Free()
-		ctx.Logger.Errorf("GoroutinePool Submit Error: %s", err)
+		ctx.Logger().Errorf("GoroutinePool Submit Error: %s", err)
 	}
 }
 
-func (self *blueprint) Route(head string, proc interface{}) (err error) {
-	if _, ok := self.functionpool[head]; ok {
+func (b *blueprint) Route(head string, proc interface{}) (err error) {
+	if _, ok := b.functionPool[head]; ok {
 		err = fmt.Errorf("please note that, head [%s] has been overwritten", head)
 	}
 
 	refType := reflect.TypeOf(proc)
-	self.functionpool[head] = sync.Pool{New: func() interface{} {
+	b.functionPool[head] = sync.Pool{New: func() interface{} {
 		return reflect.New(refType.Elem()).Interface()
 	}}
 

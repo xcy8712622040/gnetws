@@ -15,16 +15,16 @@ type Buffer struct {
 	bytes.Buffer
 }
 
-func (self *Buffer) Read(p []byte) (int, error) {
-	self.Lock()
-	defer self.Unlock()
-	return self.Buffer.Read(p)
+func (b *Buffer) Read(p []byte) (int, error) {
+	b.Lock()
+	defer b.Unlock()
+	return b.Buffer.Read(p)
 }
 
-func (self *Buffer) Write(b []byte) (int, error) {
-	self.Lock()
-	defer self.Unlock()
-	return self.Buffer.Write(b)
+func (b *Buffer) Write(buf []byte) (int, error) {
+	b.Lock()
+	defer b.Unlock()
+	return b.Buffer.Write(buf)
 }
 
 type Packing interface {
@@ -41,43 +41,43 @@ type Broadcast struct {
 	running chan struct{}
 }
 
-func NewBroadcast(wrapper Packing, docodec Serialize) *Broadcast {
+func NewBroadcast(pack Packing, codec Serialize) *Broadcast {
 	return &Broadcast{
-		pack:    wrapper,
-		codec:   docodec,
+		pack:    pack,
+		codec:   codec,
 		storage: sync.Map{},
 		running: make(chan struct{}, 1),
 	}
 }
 
-func (self *Broadcast) WriteOffConn(c gnet.Conn) {
-	self.storage.Delete(c)
+func (b *Broadcast) WriteOffConn(c gnet.Conn) {
+	b.storage.Delete(c)
 }
 
-func (self *Broadcast) RegisterConn(c gnet.Conn) {
-	self.storage.Store(c, struct{}{})
+func (b *Broadcast) RegisterConn(c gnet.Conn) {
+	b.storage.Store(c, struct{}{})
 }
 
-func (self *Broadcast) SendMessage(x interface{}) (err error) {
-	if err = self.codec.NewEnCodec(self.pack).Encode(x); err != nil {
+func (b *Broadcast) SendMessage(x interface{}) (err error) {
+	if err = b.codec.NewEnCodec(b.pack).Encode(x); err != nil {
 		return err
 	}
-	if err = self.pack.Flush(); err != nil {
+	if err = b.pack.Flush(); err != nil {
 		return err
 	}
 	select {
-	case self.running <- struct{}{}:
-		go self.emit()
+	case b.running <- struct{}{}:
+		go b.emit()
 	default:
 		logrus.Debugf("broadcast is running")
 	}
 	return
 }
 
-func (self *Broadcast) emit() {
-	defer func() { <-self.running }()
-	for pk := self.pack.SubPackage(); pk != nil; pk = self.pack.SubPackage() {
-		self.storage.Range(func(key, value interface{}) bool {
+func (b *Broadcast) emit() {
+	defer func() { <-b.running }()
+	for pk := b.pack.SubPackage(); pk != nil; pk = b.pack.SubPackage() {
+		b.storage.Range(func(key, value interface{}) bool {
 			_ = key.(gnet.Conn).AsyncWrite(pk, nil)
 			return true
 		})
@@ -85,47 +85,47 @@ func (self *Broadcast) emit() {
 }
 
 type WebSocketWrapper struct {
-	packet  []byte
-	buffer  *Buffer
-	writetx *wsutil.Writer
+	packet []byte
+	buffer *Buffer
+	writer *wsutil.Writer
 }
 
 func NewWebSocketWrapper() *WebSocketWrapper {
 	buf := new(Buffer)
 	return &WebSocketWrapper{
-		buffer:  buf,
-		packet:  make([]byte, 0, 4096),
-		writetx: wsutil.NewWriter(buf, ws.StateServerSide, ws.OpText),
+		buffer: buf,
+		packet: make([]byte, 0, 4096),
+		writer: wsutil.NewWriter(buf, ws.StateServerSide, ws.OpText),
 	}
 }
 
-func (self *WebSocketWrapper) Flush() error {
-	return self.writetx.Flush()
+func (w *WebSocketWrapper) Flush() error {
+	return w.writer.Flush()
 }
 
-func (self *WebSocketWrapper) Write(p []byte) (int, error) {
-	return self.writetx.Write(p)
+func (w *WebSocketWrapper) Write(p []byte) (int, error) {
+	return w.writer.Write(p)
 }
 
-func (self *WebSocketWrapper) SubPackage() []byte {
-	n := bytes.IndexByte(self.buffer.Bytes(), '\n')
+func (w *WebSocketWrapper) SubPackage() []byte {
+	n := bytes.IndexByte(w.buffer.Bytes(), '\n')
 	if n <= 0 {
 		return nil
 	}
 
-	if n <= cap(self.packet) {
-		self.packet = self.packet[:n]
+	if n <= cap(w.packet) {
+		w.packet = w.packet[:n]
 	} else {
-		self.packet = make([]byte, n, n)
+		w.packet = make([]byte, n, n)
 	}
 
-	if _, err := self.buffer.Read(self.packet); err != nil {
+	if _, err := w.buffer.Read(w.packet); err != nil {
 		return nil
 	}
 
-	if len(self.packet) > 0 && self.packet[len(self.packet)-1] == '\r' {
-		self.packet = self.packet[:len(self.packet)-1]
+	if len(w.packet) > 0 && w.packet[len(w.packet)-1] == '\r' {
+		w.packet = w.packet[:len(w.packet)-1]
 	}
 
-	return self.packet
+	return w.packet
 }

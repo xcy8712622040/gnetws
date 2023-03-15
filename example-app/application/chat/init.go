@@ -15,11 +15,11 @@ import (
 
 type JsonCodec struct{}
 
-func (self JsonCodec) NewEnCodec(w io.Writer) gnetws.Encode {
+func (j JsonCodec) NewEnCodec(w io.Writer) gnetws.Encode {
 	return json.NewEncoder(w)
 }
 
-func (self JsonCodec) NewDeCodec(r io.Reader) gnetws.Decode {
+func (j JsonCodec) NewDeCodec(r io.Reader) gnetws.Decode {
 	return json.NewDecoder(r)
 }
 
@@ -28,13 +28,13 @@ type Packet struct {
 	Payload string `json:"payload"`
 }
 
-func (self *Packet) Head() string {
-	return self.MsgHead
+func (p *Packet) Head() string {
+	return p.MsgHead
 }
 
-func (self *Packet) Read(p []byte) (int, error) {
-	n := copy(p, self.Payload)
+func (p *Packet) Read(pkg []byte) (int, error) {
+	n := copy(pkg, p.Payload)
 	return n, nil
 }
 
-var router = dstservice.Handler.Blueprint("/chat", new(Packet), new(JsonCodec))
+var router = dstservice.GlobalService.Blueprint("/chat", new(Packet), new(JsonCodec))

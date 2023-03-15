@@ -9,7 +9,7 @@ package chat
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
-	"github.com/xcy8712622040/gnetws/eventserve"
+	"github.com/xcy8712622040/gnetws/serverhandler"
 )
 
 type Data struct {
@@ -17,10 +17,10 @@ type Data struct {
 	Data map[string]string `json:"data"`
 }
 
-func (self *Data) Proc(ctx *eventserve.GnetContext) interface{} {
-	fmt.Println(self)
-	self.Data["resert"] = "hello world"
-	return self
+func (d *Data) Proc(ctx *serverhandler.Context) interface{} {
+	fmt.Println(d)
+	d.Data["result"] = "hello world"
+	return d
 }
 
 func init() {

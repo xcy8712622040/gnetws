@@ -1,9 +1,3 @@
-/******************************
- * @Developer: many
- * @File: conn.go
- * @Time: 2022/6/10 11:30
-******************************/
-
 package websocket
 
 import (
@@ -23,55 +17,55 @@ type TextWriter struct {
 	mutex sync.Mutex
 }
 
-func (self *TextWriter) Flush() error {
-	defer self.mutex.Unlock()
-	return self.Writer.Flush()
+func (t *TextWriter) Flush() error {
+	defer t.mutex.Unlock()
+	return t.Writer.Flush()
 }
 
-func (self *TextWriter) Write(p []byte) (int, error) {
-	self.mutex.Lock()
-	return self.Writer.Write(p)
+func (t *TextWriter) Write(p []byte) (int, error) {
+	t.mutex.Lock()
+	return t.Writer.Write(p)
 }
 
 type Conn struct {
 	gnet.Conn
 
-	wait     int32
-	wswriter *TextWriter
-	wsreader *wsutil.Reader
+	cite     int32
+	writer   *TextWriter
+	reader   *wsutil.Reader
 	limitRdr *io.LimitedReader
 }
 
-func (self *Conn) Free() {
-	if atomic.AddInt32(&self.wait, -1) <= 0 {
-		defer pool.Put(self)
-		if self.Conn != nil {
-			self.Conn = nil
+func (c *Conn) Free() {
+	if atomic.AddInt32(&c.cite, -1) <= 0 {
+		defer pool.Put(c)
+		if c.Conn != nil {
+			c.Conn = nil
 		}
 	}
 }
 
-func (self *Conn) AwaitAdd() {
-	atomic.AddInt32(&self.wait, 1)
+func (c *Conn) AddCite() {
+	atomic.AddInt32(&c.cite, 1)
 }
 
-func (self *Conn) State() ws.State {
-	return self.wsreader.State
+func (c *Conn) State() ws.State {
+	return c.reader.State
 }
 
-func (self *Conn) FrameReader() io.Reader {
-	return self.wsreader
+func (c *Conn) FrameReader() io.Reader {
+	return c.reader
 }
 
-func (self *Conn) WebSocketTextWriter() *TextWriter {
-	return self.wswriter
+func (c *Conn) WebSocketTextWriter() *TextWriter {
+	return c.writer
 }
 
-func (self *Conn) NextFrame() (err error) {
+func (c *Conn) NextFrame() (err error) {
 	var fn int64
 	var head ws.Header
 	for {
-		fn, err = DeFrameLength(self.Conn)
+		fn, err = DeFrameLength(c.Conn)
 		switch err {
 		case nil, io.ErrShortBuffer:
 		default:
@@ -82,13 +76,13 @@ func (self *Conn) NextFrame() (err error) {
 			return io.EOF
 		}
 
-		if int64(self.Conn.InboundBuffered()) < fn {
+		if int64(c.Conn.InboundBuffered()) < fn {
 			return io.EOF
 		}
 
-		self.limitRdr.N += fn
+		c.limitRdr.N += fn
 
-		head, err = self.wsreader.NextFrame()
+		head, err = c.reader.NextFrame()
 		if err != nil {
 			return err
 		}
@@ -97,30 +91,30 @@ func (self *Conn) NextFrame() (err error) {
 			return err
 		}
 
-		if err = wsutil.ControlFrameHandler(self.Conn, ws.StateServerSide)(head, self.FrameReader()); err != nil {
+		if err = wsutil.ControlFrameHandler(c.Conn, ws.StateServerSide)(head, c.FrameReader()); err != nil {
 			return err
 		}
 	}
 }
 
 func FrameConvert(conn gnet.Conn) *Conn {
-	var frameconn *Conn
+	var frame *Conn
 
 	if c := pool.Get(); c != nil {
-		frameconn = c.(*Conn)
+		frame = c.(*Conn)
 
-		frameconn.wait = 1
-		frameconn.Conn = conn
-		frameconn.limitRdr.N = 0
+		frame.cite = 1
+		frame.Conn = conn
+		frame.limitRdr.N = 0
 	} else {
-		frameconn = &Conn{
-			wait: 1,
+		frame = &Conn{
+			cite: 1,
 			Conn: conn,
 		}
-		frameconn.limitRdr = &io.LimitedReader{R: frameconn}
-		frameconn.wsreader = wsutil.NewReader(frameconn.limitRdr, ws.StateServerSide)
-		frameconn.wswriter = &TextWriter{Writer: *wsutil.NewWriter(frameconn, ws.StateServerSide, ws.OpText)}
+		frame.limitRdr = &io.LimitedReader{R: frame}
+		frame.reader = wsutil.NewReader(frame.limitRdr, ws.StateServerSide)
+		frame.writer = &TextWriter{Writer: *wsutil.NewWriter(frame, ws.StateServerSide, ws.OpText)}
 	}
 
-	return frameconn
+	return frame
 }

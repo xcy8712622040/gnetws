@@ -10,8 +10,8 @@ import (
 	"encoding/json"
 	"github.com/sirupsen/logrus"
 	"github.com/xcy8712622040/gnetws"
-	"github.com/xcy8712622040/gnetws/eventserve"
 	"github.com/xcy8712622040/gnetws/net-protocol/websocket/dstservice"
+	"github.com/xcy8712622040/gnetws/serverhandler"
 	"io"
 	"strconv"
 	"time"
@@ -19,11 +19,11 @@ import (
 
 type JsonCodec struct{}
 
-func (self JsonCodec) NewEnCodec(w io.Writer) gnetws.Encode {
+func (j JsonCodec) NewEnCodec(w io.Writer) gnetws.Encode {
 	return json.NewEncoder(w)
 }
 
-func (self JsonCodec) NewDeCodec(r io.Reader) gnetws.Decode {
+func (j JsonCodec) NewDeCodec(r io.Reader) gnetws.Decode {
 	return json.NewDecoder(r)
 }
 
@@ -32,11 +32,11 @@ type Data struct {
 	Data map[string]string `json:"data"`
 }
 
-func (self *Data) Proc(ctx *eventserve.GnetContext) interface{} {
-	self.Data["resert"] = strconv.Itoa(int(time.Now().UnixNano()))
-	return self
+func (d *Data) Proc(ctx *serverhandler.Context) interface{} {
+	d.Data["result"] = strconv.Itoa(int(time.Now().UnixNano()))
+	return d
 }
 
 func init() {
-	logrus.Info("echo Handler [ / ] router:", dstservice.Handler.Route("/", new(JsonCodec), new(Data)))
+	logrus.Info("echo Handler [ / ] router:", dstservice.GlobalService.Route("/", new(JsonCodec), new(Data)))
 }

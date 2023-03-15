@@ -1,4 +1,4 @@
-package eventserve
+package serverhandler
 
 import (
 	"errors"
@@ -10,25 +10,25 @@ type MateData struct {
 	data map[interface{}]interface{}
 }
 
-func (self *MateData) SetInterface(key, val interface{}) {
-	self.lock.Lock()
-	defer self.lock.Unlock()
+func (m *MateData) SetInterface(key, val interface{}) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
 
-	self.data[key] = val
+	m.data[key] = val
 }
 
-func (self *MateData) GetString(key interface{}) string {
-	self.lock.RLock()
-	defer self.lock.RUnlock()
+func (m *MateData) GetString(key interface{}) string {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
 
-	return self.data[key].(string)
+	return m.data[key].(string)
 }
 
-func (self *MateData) GetInt64(key interface{}) int64 {
-	self.lock.RLock()
-	defer self.lock.RUnlock()
+func (m *MateData) GetInt64(key interface{}) int64 {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
 
-	val := self.data[key]
+	val := m.data[key]
 	switch val.(type) {
 	case int64:
 		return val.(int64)
@@ -44,11 +44,11 @@ func (self *MateData) GetInt64(key interface{}) int64 {
 	panic(errors.New("non convertable type 'int64'"))
 }
 
-func (self *MateData) GetInt32(key interface{}) int32 {
-	self.lock.RLock()
-	defer self.lock.RUnlock()
+func (m *MateData) GetInt32(key interface{}) int32 {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
 
-	val := self.data[key]
+	val := m.data[key]
 	switch val.(type) {
 	case int32:
 		return val.(int32)
@@ -62,11 +62,11 @@ func (self *MateData) GetInt32(key interface{}) int32 {
 	panic(errors.New("non convertable type 'int32'"))
 }
 
-func (self *MateData) GetUint32(key interface{}) uint32 {
-	self.lock.RLock()
-	defer self.lock.RUnlock()
+func (m *MateData) GetUint32(key interface{}) uint32 {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
 
-	val := self.data[key]
+	val := m.data[key]
 	switch val.(type) {
 	case uint32:
 		return val.(uint32)
@@ -80,11 +80,11 @@ func (self *MateData) GetUint32(key interface{}) uint32 {
 	panic(errors.New("non convertable type 'uint32'"))
 }
 
-func (self *MateData) GetUint64(key interface{}) uint64 {
-	self.lock.RLock()
-	defer self.lock.RUnlock()
+func (m *MateData) GetUint64(key interface{}) uint64 {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
 
-	val := self.data[key]
+	val := m.data[key]
 	switch val.(type) {
 	case uint64:
 		return val.(uint64)
@@ -100,9 +100,9 @@ func (self *MateData) GetUint64(key interface{}) uint64 {
 	panic(errors.New("non convertable type 'uint64'"))
 }
 
-func (self *MateData) GetInterface(key interface{}) interface{} {
-	self.lock.RLock()
-	defer self.lock.RUnlock()
+func (m *MateData) GetInterface(key interface{}) interface{} {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
 
-	return self.data[key]
+	return m.data[key]
 }

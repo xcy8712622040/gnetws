@@ -1,9 +1,3 @@
-/******************************
- * @Developer: many
- * @File: code.go
- * @Time: 2022/5/5 14:53
-******************************/
-
 package gnetws
 
 import (

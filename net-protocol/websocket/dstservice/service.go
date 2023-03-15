@@ -1,18 +1,13 @@
-/******************************
- * @Developer: many
- * @File: dstservice.go
- * @Time: 2022/5/25 17:45
-******************************/
-
 package dstservice
 
 import (
+	"errors"
 	"fmt"
 	"github.com/gobwas/ws"
 	"github.com/panjf2000/gnet/v2"
 	"github.com/xcy8712622040/gnetws"
-	"github.com/xcy8712622040/gnetws/eventserve"
 	"github.com/xcy8712622040/gnetws/net-protocol/websocket"
+	"github.com/xcy8712622040/gnetws/serverhandler"
 	"io"
 	"reflect"
 	"runtime"
@@ -24,68 +19,68 @@ const (
 	RequestHeader = "__request_header__"
 )
 
-type Method interface {
+type Proc interface {
 	gnetws.Serialize
 
 	Args() (x interface{})
-	DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn, x interface{})
+	DoProc(ctx *serverhandler.Context, conn *websocket.Conn, x interface{})
 }
 
-func call(ctx *eventserve.GnetContext, hand websocket.Handler) interface{} {
+func call(ctx *serverhandler.Context, hand websocket.Handler) interface{} {
 	defer func() {
 		var exception interface{}
 		switch exception = recover(); exception.(type) {
 		case nil:
 			return
 		case runtime.Error:
-			ctx.Logger.Errorf(string(debug.Stack()))
+			ctx.Logger().Errorf(string(debug.Stack()))
 		default:
-			ctx.Logger.Warnf("Do not use 'panic' in programs")
+			ctx.Logger().Warnf("Do not use 'panic' in programs")
 		}
-		ctx.Logger.Errorf("Proc Call Error: %s", exception)
+		ctx.Logger().Errorf("Proc Call Error: %s", exception)
 	}()
 	return hand.Proc(ctx)
 }
 
 type root struct {
 	gnetws.Serialize
-	handler sync.Pool
+	argsPool sync.Pool
 }
 
-func (self *root) Args() (x interface{}) {
-	return self.handler.Get()
+func (r *root) Args() (x interface{}) {
+	return r.argsPool.Get()
 }
 
-func (self *root) DoProc(ctx *eventserve.GnetContext, conn *websocket.Conn, x interface{}) {
-	conn.AwaitAdd()
+func (r *root) DoProc(ctx *serverhandler.Context, conn *websocket.Conn, x interface{}) {
+	conn.AddCite()
 	if err := gnetws.GoroutinePool().Submit(func() {
 		defer func() {
 			conn.Free()
-			self.handler.Put(x)
+			r.argsPool.Put(x)
 		}()
 
 		handler := x.(websocket.Handler)
 		text := conn.WebSocketTextWriter()
-		if err := self.NewEnCodec(text).Encode(call(ctx, handler)); err == nil {
+		if err := r.NewEnCodec(text).Encode(call(ctx, handler)); err == nil {
 			if err = text.Flush(); err != nil {
-				ctx.Logger.Errorf("WebSocketTextWriter Flush Error: %s", err)
+				ctx.Logger().Errorf("WebSocketTextWriter Flush Error: %s", err)
 			}
 		} else {
-			ctx.Logger.Errorf("Encode Error: %s", err)
+			ctx.Logger().Errorf("Encode Error: %s", err)
 		}
 	}); err != nil {
 		conn.Free()
-		ctx.Logger.Errorf("GoroutinePool Submit Error: %s", err)
+		ctx.Logger().Errorf("GoroutinePool Submit Error: %s", err)
 	}
 }
 
-type WebSocketHandler struct {
-	Path       string
-	Plugins    *plugins
-	methodpool map[string]Method
+type WebSocketFrameHandler struct {
+	method Proc
+
+	Plugins *plugins
 }
 
-func (self *WebSocketHandler) Proc(ctx *eventserve.GnetContext, conn gnet.Conn) error {
+func (w *WebSocketFrameHandler) WithConn(ctx *serverhandler.Context, conn gnet.Conn) error {
 	frame := websocket.FrameConvert(conn)
 
 	defer frame.Free()
@@ -94,58 +89,61 @@ func (self *WebSocketHandler) Proc(ctx *eventserve.GnetContext, conn gnet.Conn) 
 			return err
 		}
 
-		if method, ok := self.methodpool[self.Path]; ok {
-			x := method.Args()
-			if err = method.NewDeCodec(frame.FrameReader()).Decode(x); err == nil {
-				method.DoProc(ctx, frame, x)
-			} else {
-				ctx.Logger.Errorf("DoProc Error: %s", err)
-			}
+		x := w.method.Args()
+		if err = w.method.NewDeCodec(frame.FrameReader()).Decode(x); err == nil {
+			w.method.DoProc(ctx, frame, x)
 		} else {
-			return fmt.Errorf("path [ %s ] non-existent", self.Path)
+			ctx.Logger().Errorf("DoProc Error: %s", err)
 		}
 	}
 
 	return nil
 }
 
-func (self *WebSocketHandler) Blueprint(path string, args Packet, codec gnetws.Serialize) *blueprint {
+type WebSocketUpgradeHandle struct {
+	WebSocketFrameHandler
+
+	methodMap map[string]Proc
+}
+
+func (w *WebSocketUpgradeHandle) Blueprint(path string, args Packet, codec gnetws.Serialize) Blueprint {
 	refType := reflect.TypeOf(args)
-	self.methodpool[path] = &blueprint{Serialize: codec, functionpool: map[string]sync.Pool{}, args: sync.Pool{
+	w.methodMap[path] = &blueprint{Serialize: codec, functionPool: map[string]sync.Pool{}, argsPool: sync.Pool{
 		New: func() interface{} {
 			return reflect.New(refType.Elem()).Interface()
 		},
 	}}
-	return self.methodpool[path].(*blueprint)
+	return w.methodMap[path].(*blueprint)
 }
 
-func (self *WebSocketHandler) Route(path string, codec gnetws.Serialize, proc websocket.Handler) (err error) {
-	if _, ok := self.methodpool[path]; ok {
+func (w *WebSocketUpgradeHandle) Route(path string, codec gnetws.Serialize, proc websocket.Handler) (err error) {
+	if _, ok := w.methodMap[path]; ok {
 		err = fmt.Errorf("please note that, path [%s] has been overwritten", path)
 	}
 
 	refType := reflect.TypeOf(proc)
-	self.methodpool[path] = &root{Serialize: codec, handler: sync.Pool{New: func() interface{} {
+	w.methodMap[path] = &root{Serialize: codec, argsPool: sync.Pool{New: func() interface{} {
 		return reflect.New(refType.Elem()).Interface()
 	}}}
 
 	return
 }
 
-type WebSocketUP struct {
-	ws.Upgrader
-	WebSocketHandler
-}
+func (w *WebSocketUpgradeHandle) WithConn(ctx *serverhandler.Context, conn gnet.Conn) error {
+	up := ws.Upgrader{}
 
-func (self *WebSocketUP) Proc(ctx *eventserve.GnetContext, conn gnet.Conn) error {
-	up := self.Upgrader
-	wh := self.WebSocketHandler
 	header := map[string]string{}
-	matedata := ctx.Value(eventserve.MATEDATA).(*eventserve.MateData)
 
-	up.OnRequest = func(uri []byte) error {
-		wh.Path = string(uri)
-		return nil
+	wsFrameHandler := w.WebSocketFrameHandler
+
+	up.OnRequest = func(uri []byte) (err error) {
+		if method, ok := w.methodMap[string(uri)]; ok {
+			wsFrameHandler.method = method
+		} else {
+			err = errors.New(fmt.Sprintf("uri [%s] no counterpart handler", string(uri)))
+			ctx.Logger().Errorf("ws upgrade error: %s", err)
+		}
+		return
 	}
 
 	up.OnHeader = func(key, value []byte) error {
@@ -156,20 +154,23 @@ func (self *WebSocketUP) Proc(ctx *eventserve.GnetContext, conn gnet.Conn) error
 	if _, err := up.Upgrade(conn); err != nil {
 		return err
 	} else {
-		ctx.DoProc = &wh
+		ctx.WithHandler(&wsFrameHandler)
 	}
-	matedata.SetInterface(RequestHeader, header)
+	ctx.MetaData().SetInterface(RequestHeader, header)
 
-	return self.Plugins.WsOnUpgrader(ctx)
+	return w.Plugins.WsOnUpgrade(ctx)
 }
 
-func NewWebSocketHandler() *WebSocketUP {
-	return &WebSocketUP{
-		WebSocketHandler: WebSocketHandler{
-			methodpool: map[string]Method{},
-			Plugins:    &plugins{mutex: sync.Mutex{}, storage: []websocket.WsPlugin{}},
+var GlobalService = NewWebSocketHandler()
+
+func NewWebSocketHandler() *WebSocketUpgradeHandle {
+	return &WebSocketUpgradeHandle{
+		methodMap: map[string]Proc{},
+		WebSocketFrameHandler: WebSocketFrameHandler{
+			Plugins: &plugins{
+				mutex:   sync.Mutex{},
+				storage: []websocket.WsPlugin{},
+			},
 		},
 	}
 }
-
-var Handler = NewWebSocketHandler()

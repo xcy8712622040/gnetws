@@ -14,42 +14,42 @@ import (
 	"net"
 )
 
-type WebscoketClient struct {
+type WebsocketClient struct {
 	conn   net.Conn
 	reader *wsutil.Reader
 	writer *wsutil.Writer
 }
 
-func (self *WebscoketClient) Dial(ctx context.Context, url string) (err error) {
-	self.conn, _, _, err = ws.Dial(ctx, url)
+func (w *WebsocketClient) Dial(ctx context.Context, url string) (err error) {
+	w.conn, _, _, err = ws.Dial(ctx, url)
 	if err != nil {
 		return err
 	}
 
-	self.reader = wsutil.NewReader(self.conn, ws.StateClientSide)
-	self.writer = wsutil.NewWriter(self.conn, ws.StateClientSide, ws.OpText)
+	w.reader = wsutil.NewReader(w.conn, ws.StateClientSide)
+	w.writer = wsutil.NewWriter(w.conn, ws.StateClientSide, ws.OpText)
 	return
 }
 
-func (self *WebscoketClient) Send(p []byte) (n int, err error) {
+func (w *WebsocketClient) Send(p []byte) (n int, err error) {
 	defer func() {
 		if err == nil {
-			err = self.writer.Flush()
+			err = w.writer.Flush()
 		}
 	}()
 
-	n, err = self.writer.Write(p)
+	n, err = w.writer.Write(p)
 
 	return n, err
 }
 
-func (self *WebscoketClient) Recv(w io.Writer) (int64, error) {
+func (w *WebsocketClient) Recv(writer io.Writer) (int64, error) {
 	var (
 		err  error
 		head ws.Header
 	)
-	for head, err = self.reader.NextFrame(); err == nil && head.OpCode.IsControl(); head, err = self.reader.NextFrame() {
-		if err = wsutil.ControlFrameHandler(self.conn, ws.StateClientSide)(head, self.reader); err != nil {
+	for head, err = w.reader.NextFrame(); err == nil && head.OpCode.IsControl(); head, err = w.reader.NextFrame() {
+		if err = wsutil.ControlFrameHandler(w.conn, ws.StateClientSide)(head, w.reader); err != nil {
 			return 0, err
 		}
 	}
@@ -58,5 +58,5 @@ func (self *WebscoketClient) Recv(w io.Writer) (int64, error) {
 		return 0, err
 	}
 
-	return io.Copy(w, self.reader)
+	return io.Copy(writer, w.reader)
 }
