@@ -76,7 +76,8 @@ func (w *WithWebSocketUpgradeHandle) WithConn(ctx *serverhandler.Context, conn g
 	if _, err := up.Upgrade(conn); err != nil {
 		return err
 	}
+
 	ctx.MetaData().SetInterface(RequestHeader, header)
 
-	return w.Plugins().WsOnUpgrade(ctx, conn, url)
+	return w.Plugins().WsOnUpgrade(ctx, FrameConvert(conn), url)
 }

@@ -1,7 +1,6 @@
 package websocket
 
 import (
-	"github.com/panjf2000/gnet/v2"
 	"github.com/xcy8712622040/gnetws/serverhandler"
 	"sync"
 )
@@ -9,14 +8,14 @@ import (
 type (
 	WsPlugin interface{}
 
-	// OnUpgradePlugin ws链接建立成功之后
-	OnUpgradePlugin interface {
-		OnUpgrade(ctx *serverhandler.Context, conn gnet.Conn, path string) error
-	}
-
-	// OnClosedPlugin ws帧解析错误 关闭 ws链接之前
+	// OnClosedPlugin ws帧解析错误 服务端主动关闭ws链接之前
 	OnClosedPlugin interface {
 		OnWsClosed(ctx *serverhandler.Context, err error)
+	}
+
+	// OnUpgradePlugin ws链接建立成功之后
+	OnUpgradePlugin interface {
+		OnUpgrade(ctx *serverhandler.Context, conn *Conn, path string) error
 	}
 )
 
@@ -35,7 +34,7 @@ func (p *Plugins) Add(plugin WsPlugin) {
 	p.storage = append(p.storage, plugin)
 }
 
-func (p *Plugins) WsOnUpgrade(ctx *serverhandler.Context, conn gnet.Conn, path string) error {
+func (p *Plugins) WsOnUpgrade(ctx *serverhandler.Context, conn *Conn, path string) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	for idx := range p.storage {

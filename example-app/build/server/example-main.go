@@ -21,7 +21,10 @@ var ProtoAddr = flag.String("addr", "tcp://:8080", "listener addr")
 type WithOnUpgradePlugin struct{}
 
 // OnUpgrade ws升级成功之后注册ws帧处理
-func (w *WithOnUpgradePlugin) OnUpgrade(ctx *serverhandler.Context, conn gnet.Conn, path string) error {
+func (w *WithOnUpgradePlugin) OnUpgrade(ctx *serverhandler.Context, conn *websocket.Conn, path string) error {
+	if _, err := conn.WebSocketTextWriter().Write([]byte(`Success`)); err != nil {
+		return err
+	}
 	WithFrame := &websocket.WithWebSocketFrameHandler{
 		FrameHandler: dstservice.GlobalService.WithUrl2Proc(path),
 	}
