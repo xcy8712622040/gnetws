@@ -16,6 +16,10 @@ var (
 	globalPlugins = new(Plugins)
 )
 
+func WsPlugins() *Plugins {
+	return globalPlugins
+}
+
 type Proc interface {
 	Args() (x interface{})
 	Codex() gnetws.Serialize

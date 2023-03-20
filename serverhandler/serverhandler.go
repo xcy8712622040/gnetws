@@ -147,15 +147,13 @@ func (h *Handler) Start(ctx context.Context, addr string, opts ...gnet.Option) e
 		<-ctx.Done()
 		h.logger.Warnf("server handler exit. cause: ", ctx.Err())
 
-		if h.engine.CountConnections() == -1 {
-			return
-		} else {
-			func(err error) {
-				if err != nil {
-					h.logger.Errorf("server handler stop error: %s", err.Error())
-				}
-			}(h.engine.Stop(context.Background()))
-		}
+		func(err error) {
+			if err == nil {
+				h.logger.Debugf("server handler normal shutdown")
+			} else {
+				h.logger.Errorf("server handler stop error: %s", err.Error())
+			}
+		}(h.engine.Stop(context.Background()))
 	}()
 
 	return gnet.Run(h, addr, append([]gnet.Option{gnet.WithLogger(h.logger)}, opts...)...)
