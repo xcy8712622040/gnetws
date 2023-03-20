@@ -12,7 +12,6 @@ import (
 	"github.com/xcy8712622040/gnetws/serverhandler"
 	"log"
 	"os/signal"
-	"runtime"
 	"syscall"
 )
 
@@ -58,15 +57,15 @@ func main() {
 		syscall.SIGINT, // Ctrl+C
 	)
 
-	_, _ = Serve.Cron().AddFunc("*/1 * * * * *", func() {
-		ms := runtime.MemStats{}
-		runtime.ReadMemStats(&ms)
-		logrus.Infof(
-			"NumGoroutine:%d  MemAlloc:%dMB",
-			runtime.NumGoroutine(),
-			ms.Sys/1024/1024,
-		)
-	})
+	//_, _ = Serve.Cron().AddFunc("*/1 * * * * *", func() {
+	//	ms := runtime.MemStats{}
+	//	runtime.ReadMemStats(&ms)
+	//	logrus.Infof(
+	//		"NumGoroutine:%d  MemAlloc:%dMB",
+	//		runtime.NumGoroutine(),
+	//		ms.Sys/1024/1024,
+	//	)
+	//})
 
 	defer cancel()
 	func(err error) {

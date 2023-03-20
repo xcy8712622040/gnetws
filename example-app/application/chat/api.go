@@ -8,7 +8,6 @@ package chat
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"github.com/xcy8712622040/gnetws/serverhandler"
 )
 
@@ -21,8 +20,4 @@ func (d *Data) Proc(ctx *serverhandler.Context) interface{} {
 	fmt.Println(d)
 	d.Data["result"] = "hello world"
 	return d
-}
-
-func init() {
-	logrus.Info("chat blueprint[ /chat ] router [ to ]:", router.Route("to", new(Data)))
 }

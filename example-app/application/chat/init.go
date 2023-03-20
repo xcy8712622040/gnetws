@@ -8,8 +8,10 @@ package chat
 
 import (
 	"encoding/json"
+	"github.com/sirupsen/logrus"
 	"github.com/xcy8712622040/gnetws"
 	"github.com/xcy8712622040/gnetws/net-protocol/websocket/dstservice"
+	"github.com/xcy8712622040/gnetws/serverhandler"
 	"io"
 )
 
@@ -37,4 +39,30 @@ func (p *Packet) Read(pkg []byte) (int, error) {
 	return n, nil
 }
 
-var router = dstservice.GlobalService.Blueprint("/chat", new(Packet), new(JsonCodec))
+type PreDoProc struct{}
+
+// OnCallPre 逻辑处理之前
+func (p *PreDoProc) OnCallPre(ctx *serverhandler.Context, x interface{}) (err error) {
+	d := x.(*Packet)
+	ctx.Logger().Debugf("chat handler proc with pre:", d.Head(), d.Payload)
+	return
+}
+
+// OnCallPost 逻辑处理之后
+func (p *PreDoProc) OnCallPost(ctx *serverhandler.Context, x interface{}, reply interface{}) (err error) {
+	d := x.(*Packet)
+	switch d.Head() {
+	case "to":
+		r := reply.(*Data)
+		ctx.Logger().Debugf("chat handler proc with post:", r.Head, r.Data)
+	}
+	return
+}
+
+var blueprint dstservice.Blueprint
+
+func init() {
+	blueprint = dstservice.GlobalService.Blueprint("/chat", new(Packet), new(JsonCodec))
+	blueprint.Plugins().Add(new(PreDoProc))
+	logrus.Info("chat blueprint[ /chat ] router [ to ]:", blueprint.Route("to", new(Data)))
+}
