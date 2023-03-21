@@ -130,7 +130,7 @@ func (h *Handler) OnTraffic(conn gnet.Conn) (action gnet.Action) {
 		return action
 	}
 
-	if err := ctx.WithConn(conn); err != nil {
+	if err := ctx.DealWithConn(conn); err != nil {
 		action = gnet.Close
 		h.logger.Errorf("OnTraffic: client [%s]: %s", conn.RemoteAddr().String(), err)
 	}

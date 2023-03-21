@@ -24,10 +24,6 @@ type Plugins struct {
 	storage []ServicePlugin
 }
 
-func NewPlugins() *Plugins {
-	return &Plugins{storage: []ServicePlugin{}}
-}
-
 func (p *Plugins) Add(plugin ServicePlugin) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()

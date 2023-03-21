@@ -44,8 +44,8 @@ func (c *Context) MetaData() *MateData { return c.Value(METADATA).(*MateData) }
 // WithHandler 设置一个处理器
 func (c *Context) WithHandler(proc Proc) { c.Proc = proc }
 
-// WithConn 处理一个conn
-func (c *Context) WithConn(conn gnet.Conn) error {
+// DealWithConn 处理一个conn
+func (c *Context) DealWithConn(conn gnet.Conn) error {
 	if c.Proc == nil {
 		if _, err := io.Copy(conn, conn); err != nil {
 			return err

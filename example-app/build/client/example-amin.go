@@ -43,7 +43,7 @@ func main() {
 	}()
 
 	var err error
-	ticker := time.NewTicker(1 * time.Microsecond)
+	ticker := time.NewTicker(1 * time.Second)
 	defer func() { stop(); fmt.Println("send exit:", err) }()
 	for {
 		select {

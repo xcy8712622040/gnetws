@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/xcy8712622040/gnetws/cron-3"
 	_ "github.com/xcy8712622040/gnetws/example-app/application"
+	"github.com/xcy8712622040/gnetws/net-protocol/websocket"
 	"github.com/xcy8712622040/gnetws/net-protocol/websocket/dstservice"
 	"github.com/xcy8712622040/gnetws/serverhandler"
 	"log"
@@ -17,10 +18,24 @@ import (
 
 var ProtoAddr = flag.String("addr", "tcp://:8080", "listener addr")
 
+type WithOnUpgradePlugin struct{}
+
+// OnUpgrade ws升级成功之后注册ws帧处理
+func (w *WithOnUpgradePlugin) OnUpgrade(ctx *serverhandler.Context, conn gnet.Conn, path string) error {
+	WithFrame := &websocket.WithWebSocketFrameHandler{
+		FrameHandler: dstservice.GlobalService.WithUrl2Proc(path),
+	}
+	ctx.WithHandler(WithFrame)
+	return nil
+}
+
 type WithDefaultService struct{}
 
+// OnOpen tcp链接建立成功之后 注册 http升websocket
 func (w *WithDefaultService) OnOpen(ctx *serverhandler.Context) (out []byte, action gnet.Action) {
-	ctx.WithHandler(dstservice.GlobalService)
+	WithUpHandler := new(websocket.WithWebSocketUpgradeHandle)
+	WithUpHandler.Plugins().Add(new(WithOnUpgradePlugin))
+	ctx.WithHandler(WithUpHandler)
 	return out, action
 }
 
