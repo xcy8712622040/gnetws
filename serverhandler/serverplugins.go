@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/panjf2000/gnet/v2"
 	"sync"
+	"time"
 )
 
 type EventPlugin interface{}
@@ -32,6 +33,11 @@ type (
 	// OnTrafficPrePlugin 数据到来
 	OnTrafficPrePlugin interface {
 		OnTrafficPre(c *Context, size int) (action gnet.Action)
+	}
+
+	// OnTickerPlugin 定时器方法
+	OnTickerPlugin interface {
+		OnTicker(s *Handler) (delay time.Duration, action gnet.Action)
 	}
 )
 
@@ -121,4 +127,17 @@ func (p *Plugins) EventServerOnTrafficPre(c *Context, size int) (action gnet.Act
 		}
 	}
 	return action
+}
+
+func (p *Plugins) EventServerOnTicker(s *Handler) (delay time.Duration, action gnet.Action) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	for idx := range p.storage {
+		plugin := p.storage[idx]
+		if ticker, ok := plugin.(OnTickerPlugin); ok {
+			return ticker.OnTicker(s)
+		}
+	}
+	return 99999 * time.Hour, action
 }

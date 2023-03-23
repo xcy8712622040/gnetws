@@ -5,14 +5,15 @@ import (
 	"flag"
 	"github.com/panjf2000/gnet/v2"
 	"github.com/sirupsen/logrus"
-	"github.com/xcy8712622040/gnetws/cron-3"
 	_ "github.com/xcy8712622040/gnetws/example-app/application"
 	"github.com/xcy8712622040/gnetws/net-protocol/websocket"
 	"github.com/xcy8712622040/gnetws/net-protocol/websocket/dstservice"
 	"github.com/xcy8712622040/gnetws/serverhandler"
 	"log"
 	"os/signal"
+	"runtime"
 	"syscall"
+	"time"
 )
 
 var ProtoAddr = flag.String("addr", "tcp://:8080", "listener addr")
@@ -38,7 +39,17 @@ func (w *WithDefaultService) OnOpen(ctx *serverhandler.Context) (out []byte, act
 	WithUpHandler := new(websocket.WithWebSocketUpgradeHandle)
 	WithUpHandler.Plugins().Add(new(WithOnUpgradePlugin))
 	ctx.WithHandler(WithUpHandler)
-	return out, action
+	return
+}
+
+type TickerOutMemoryAndNumGoroutine struct{}
+
+func (t *TickerOutMemoryAndNumGoroutine) OnTicker(s *serverhandler.Handler) (d time.Duration, act gnet.Action) {
+	d = time.Second
+	ms := runtime.MemStats{}
+	runtime.ReadMemStats(&ms)
+	logrus.Infof("NumGoroutine:%d  MemAlloc:%dMB", runtime.NumGoroutine(), ms.Sys/1024/1024)
+	return
 }
 
 func main() {
@@ -47,25 +58,15 @@ func main() {
 	logrus.SetFormatter(new(logrus.JSONFormatter))
 
 	Serve := serverhandler.NewHandler(
-		serverhandler.WithCron(cron.New(cron.WithSeconds())),
 		serverhandler.WithLogger(logrus.WithField("kind", "test")),
 	)
 
-	Serve.Plugins().Add(new(WithDefaultService)) // 注册逻辑处理器
+	Serve.Plugins().Add(new(WithDefaultService))             // 注册逻辑处理器
+	Serve.Plugins().Add(new(TickerOutMemoryAndNumGoroutine)) // 每秒输出内存大小和协程数量
 
 	ctx, cancel := signal.NotifyContext(context.Background(),
 		syscall.SIGINT, // Ctrl+C
 	)
-
-	//_, _ = Serve.Cron().AddFunc("*/1 * * * * *", func() {
-	//	ms := runtime.MemStats{}
-	//	runtime.ReadMemStats(&ms)
-	//	logrus.Infof(
-	//		"NumGoroutine:%d  MemAlloc:%dMB",
-	//		runtime.NumGoroutine(),
-	//		ms.Sys/1024/1024,
-	//	)
-	//})
 
 	defer cancel()
 	func(err error) {

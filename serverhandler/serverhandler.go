@@ -4,8 +4,8 @@ import (
 	"context"
 	"github.com/panjf2000/gnet/v2"
 	"github.com/panjf2000/gnet/v2/pkg/logging"
+	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
-	"github.com/xcy8712622040/gnetws/cron-3"
 	"time"
 )
 
@@ -16,28 +16,20 @@ const (
 
 type Option func(s *Handler)
 
+func WithCron(c *cron.Cron) Option {
+	return func(s *Handler) {
+		s.Cron = c
+	}
+}
+
 func WithLogger(log logging.Logger) Option {
 	return func(s *Handler) {
 		s.logger = log
 	}
 }
 
-func WithCron(c *cron.Cron) Option {
-	return func(s *Handler) {
-		s.EventCron.Cron = c
-	}
-}
-
-type ServerHandler interface {
-	gnet.EventHandler
-
-	Cron() *cron.Cron
-	Plugins() *Plugins
-	Start(ctx context.Context, addr string, opts ...gnet.Option) error
-}
-
 type Handler struct {
-	cron.EventCron
+	*cron.Cron
 
 	plugins Plugins
 
@@ -49,7 +41,7 @@ type Handler struct {
 	cancelFunc context.CancelFunc
 }
 
-func NewHandler(opts ...Option) ServerHandler {
+func NewHandler(opts ...Option) *Handler {
 	handler := new(Handler)
 
 	for _, opt := range opts {
@@ -61,14 +53,6 @@ func NewHandler(opts ...Option) ServerHandler {
 	return handler
 }
 
-func (h *Handler) Cron() *cron.Cron {
-	if h.EventCron.Cron == nil {
-		h.EventCron.Cron = cron.New()
-	}
-
-	return h.EventCron.Cron
-}
-
 func (h *Handler) Plugins() *Plugins { return &h.plugins }
 
 func (h *Handler) OnShutdown(eng gnet.Engine) {
@@ -78,14 +62,11 @@ func (h *Handler) OnShutdown(eng gnet.Engine) {
 
 func (h *Handler) OnBoot(eng gnet.Engine) (action gnet.Action) {
 	h.engine = eng
-	if h.EventCron.Cron != nil {
-		h.EventCron.Init()
-	}
 	return h.plugins.EventServerOnBoot(eng)
 }
 
 func (h *Handler) OnTick() (delay time.Duration, action gnet.Action) {
-	return h.EventCron.Ticker()
+	return h.plugins.EventServerOnTicker(h)
 }
 
 func (h *Handler) OnOpen(conn gnet.Conn) (out []byte, action gnet.Action) {
@@ -143,9 +124,17 @@ func (h *Handler) Start(ctx context.Context, addr string, opts ...gnet.Option) e
 		h.logger = logrus.New()
 	}
 
+	if h.Cron != nil {
+		h.Cron.Start()
+	}
+
 	go func() {
 		<-ctx.Done()
 		h.logger.Warnf("server handler exit. cause: ", ctx.Err())
+
+		if h.Cron != nil {
+			<-h.Cron.Stop().Done()
+		}
 
 		func(err error) {
 			if err == nil {
