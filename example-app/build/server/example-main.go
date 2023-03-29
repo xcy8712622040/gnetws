@@ -73,5 +73,5 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-	}(Serve.Start(ctx, *ProtoAddr, gnet.WithMulticore(true), gnet.WithTicker(true)))
+	}(Serve.Start(ctx, *ProtoAddr, gnet.WithMulticore(true), gnet.WithTicker(true), gnet.WithReuseAddr(true)))
 }

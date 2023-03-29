@@ -7,33 +7,52 @@
 package echo
 
 import (
-	"encoding/json"
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/xcy8712622040/gnetws"
 	"github.com/xcy8712622040/gnetws/net-protocol/websocket/dstservice"
 	"github.com/xcy8712622040/gnetws/serverhandler"
 	"io"
-	"strconv"
-	"time"
 )
 
-type JsonCodec struct{}
-
-func (j JsonCodec) NewEnCodec(w io.Writer) gnetws.Encode {
-	return json.NewEncoder(w)
+type JsonCodec struct {
+	r io.Reader
+	w io.Writer
 }
 
-func (j JsonCodec) NewDeCodec(r io.Reader) gnetws.Decode {
-	return json.NewDecoder(r)
+func (j *JsonCodec) NewEnCodec(w io.Writer) gnetws.Encode {
+	j.w = w
+	return j
 }
 
-type Data struct {
-	Head string            `json:"head"`
-	Data map[string]string `json:"data"`
+func (j *JsonCodec) Encode(x interface{}) (err error) {
+	_, err = j.w.Write([]byte(*x.(*Data)))
+	return
 }
+
+func (j *JsonCodec) NewDeCodec(r io.Reader) gnetws.Decode {
+	j.r = r
+	return j
+}
+
+func (j *JsonCodec) Decode(x interface{}) (err error) {
+	if buf, err := io.ReadAll(j.r); err != nil {
+		return err
+	} else {
+		if d, ok := x.(*Data); ok {
+			*d = Data(buf)
+			fmt.Println("=============>", *d)
+		} else {
+			fmt.Println("转换错误！！！！！！")
+		}
+	}
+	return err
+
+}
+
+type Data string
 
 func (d *Data) Proc(ctx *serverhandler.Context) interface{} {
-	d.Data["result"] = strconv.Itoa(int(time.Now().UnixNano()))
 	return d
 }
 
