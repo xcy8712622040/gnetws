@@ -30,17 +30,13 @@ type WithWebSocketFrameHandler struct {
 	FrameHandler Proc
 }
 
-func (w *WithWebSocketFrameHandler) Plugins() *Plugins {
-	return globalPlugins
-}
-
 func (w *WithWebSocketFrameHandler) WithConn(ctx *serverhandler.Context, conn gnet.Conn) error {
 	frame := FrameConvert(conn)
 
 	defer frame.Free()
 	for err := frame.NextFrame(); err != io.EOF; err = frame.NextFrame() {
 		if err != nil {
-			w.Plugins().WsOnClosedPlugin(ctx, err)
+			globalPlugins.WsOnClosedPlugin(ctx, err)
 			return err
 		}
 
@@ -56,10 +52,6 @@ func (w *WithWebSocketFrameHandler) WithConn(ctx *serverhandler.Context, conn gn
 }
 
 type WithWebSocketUpgradeHandle struct{}
-
-func (w *WithWebSocketUpgradeHandle) Plugins() *Plugins {
-	return globalPlugins
-}
 
 func (w *WithWebSocketUpgradeHandle) WithConn(ctx *serverhandler.Context, conn gnet.Conn) error {
 	up := ws.Upgrader{}
@@ -83,5 +75,5 @@ func (w *WithWebSocketUpgradeHandle) WithConn(ctx *serverhandler.Context, conn g
 
 	ctx.MetaData().SetInterface(RequestHeader, header)
 
-	return w.Plugins().WsOnUpgrade(ctx, FrameConvert(conn), url)
+	return globalPlugins.WsOnUpgrade(ctx, FrameConvert(conn), url)
 }
