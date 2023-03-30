@@ -1,15 +1,18 @@
 package websocket
 
 import (
+	"bytes"
 	"github.com/gobwas/ws"
 	"github.com/panjf2000/gnet/v2"
 	"github.com/xcy8712622040/gnetws"
 	"github.com/xcy8712622040/gnetws/serverhandler"
 	"io"
+	"net/url"
 )
 
 const (
-	RequestHeader = "__request_header__"
+	Protocol     = "__protocol__"
+	RequestQuery = "__request_query__"
 )
 
 var (
@@ -56,24 +59,28 @@ type WithWebSocketUpgradeHandle struct{}
 func (w *WithWebSocketUpgradeHandle) WithConn(ctx *serverhandler.Context, conn gnet.Conn) error {
 	up := ws.Upgrader{}
 
-	url := ""
-	header := map[string]string{}
+	var (
+		path  = ""
+		query = map[string][]string{}
+	)
 
 	up.OnRequest = func(uri []byte) (err error) {
-		url = string(uri)
+		URL := bytes.Split(uri, []byte("?"))
+
+		path = string(URL[0])
+		if query, err = url.ParseQuery(string(URL[1])); err != nil {
+			return err
+		} else {
+			ctx.MetaData().SetInterface(RequestQuery, query)
+		}
 		return
 	}
 
-	up.OnHeader = func(key, value []byte) error {
-		header[string(key)] = string(value)
-		return nil
-	}
-
-	if _, err := up.Upgrade(conn); err != nil {
+	if hs, err := up.Upgrade(conn); err != nil {
 		return err
+	} else {
+		ctx.MetaData().SetInterface(Protocol, hs.Protocol)
 	}
 
-	ctx.MetaData().SetInterface(RequestHeader, header)
-
-	return globalPlugins.WsOnUpgrade(ctx, FrameConvert(conn), url)
+	return globalPlugins.WsOnUpgrade(ctx, FrameConvert(conn), path)
 }

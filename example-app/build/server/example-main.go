@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"github.com/panjf2000/gnet/v2"
 	"github.com/sirupsen/logrus"
 	_ "github.com/xcy8712622040/gnetws/example-app/application"
@@ -23,7 +22,6 @@ type WithOnUpgradePlugin struct{}
 
 // OnUpgrade ws升级成功之后注册ws帧处理
 func (w *WithOnUpgradePlugin) OnUpgrade(ctx *serverhandler.Context, conn *websocket.Conn, path string) error {
-	fmt.Printf("%s ==> OnUpgrade\n", conn.RemoteAddr().String())
 	if _, err := conn.WebSocketTextWriter().Write([]byte(`Success`)); err != nil {
 		return err
 	}
@@ -38,7 +36,6 @@ type WithDefaultService struct{}
 
 // OnOpen tcp链接建立成功之后 注册 http升websocket
 func (w *WithDefaultService) OnOpen(ctx *serverhandler.Context) (out []byte, action gnet.Action) {
-	fmt.Printf("%s ==> OnOpen\n", ctx.MetaData().GetInterface(serverhandler.Conn).(gnet.Conn).RemoteAddr().String())
 	WithUpHandler := new(websocket.WithWebSocketUpgradeHandle)
 	ctx.WithHandler(WithUpHandler)
 	return
